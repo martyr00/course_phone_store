@@ -9,7 +9,7 @@ from .permission import IsAdminOrReadOnly, AuthenticatedUser, AllowOnlyAdmin
 from .serializer import TelephoneSerializer, BrandSerializer, UserSerializerRegistration, UserSerializer, \
     GetAllTelephoneSerializer
 
-from base.models import Telephone, Brand, UserProfile
+from base.models import Telephone, Brand, UserProfile, Order, City
 from .utils import write_error_to_file
 
 
@@ -322,6 +322,20 @@ class AdminUsersGetItemPatchDeleteAPIView(APIView):
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class OrderUserAPIView(APIView):
+class OrderAPIView(APIView):
     permission_classes = [AllowAny]
-    queryset = UserProfile.objects.all()
+    queryset = Order.objects.all()
+
+
+class CityAPIView(APIView):
+    permission_classes = [AllowAny]
+    queryset = City.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        try:
+            result_get_all = City.get_all()
+            return Response(result_get_all, status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_CityAPIView', e)
+            return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

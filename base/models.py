@@ -13,6 +13,17 @@ from base.utils import get_user_image_upload_path, get_telephone_image_upload_pa
 class City(models.Model):
     name = models.CharField(max_length=100)
 
+    @classmethod
+    def get_all(cls):
+        with connection.cursor() as cursor:
+            query = """
+                       SELECT id, name
+                       FROM base_city
+                       """
+            cursor.execute(query)
+            result = dictfetchall(cursor)
+            return result
+
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)

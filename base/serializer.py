@@ -59,7 +59,7 @@ class TelephoneSerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(required=False)
-    number_telephone = serializers.CharField(max_length=100, required=False)
+    number_telephone = serializers.CharField(max_length=100)
     address = serializers.CharField(max_length=100, required=False)
     birth_date = serializers.DateField(required=False)
 
