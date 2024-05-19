@@ -19,7 +19,20 @@ class TelephoneGetPostAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            result = Telephone.get_all()
+            sort_by = request.query_params.get('sort_by', 'title')
+            sort_dir = request.query_params.get('sort_dir', 'asc')
+            sort_dict = {
+                'title': 'base_telephone.title',
+                'price': 'base_telephone.price',
+            }
+            if sort_by not in sort_dict:
+                sort_by = 'title'
+
+            sort_field = sort_dict[sort_by]
+            if sort_dir == 'desc':
+                sort_field += ' DESC'
+
+            result = Telephone.get_all(sort_field)
             serialized_result = GetAllTelephoneSerializer(result, many=True)
             return Response(serialized_result.data, status=status.HTTP_200_OK)
         except Exception as e:

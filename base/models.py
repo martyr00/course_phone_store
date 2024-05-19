@@ -332,29 +332,29 @@ class Telephone(models.Model):
     update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
 
     @classmethod
-    def get_all(cls):
+    def get_all(cls, sort_by):
         with connection.cursor() as cursor:
             query = """
-            SELECT 
-                base_telephone.id AS id, 
-                base_telephone.title AS title, 
-                base_telephone.price AS price, 
-                base_brand.title AS brand,
-                COALESCE(json_agg(base_telephoneimage.image), '[]'::json) AS images
-            FROM 
-                base_telephone
-            JOIN 
-                base_brand ON base_telephone.brand_id = base_brand.id
-            LEFT JOIN 
-                base_telephoneimage ON base_telephone.id = base_telephoneimage.telephone_id
-            GROUP BY 
-                 base_telephone.id, 
-                 base_telephone.title,
-                 base_telephone.price, 
-                 base_brand.title
-            ORDER BY 
-                base_telephone.title;
-            """
+                        SELECT 
+                            base_telephone.id AS id, 
+                            base_telephone.title AS title, 
+                            base_telephone.price AS price, 
+                            base_brand.title AS brand,
+                            COALESCE(json_agg(base_telephoneimage.image), '[]'::json) AS images
+                        FROM 
+                            base_telephone
+                        JOIN 
+                            base_brand ON base_telephone.brand_id = base_brand.id
+                        LEFT JOIN 
+                            base_telephoneimage ON base_telephone.id = base_telephoneimage.telephone_id
+                        GROUP BY 
+                            base_telephone.id, 
+                            base_telephone.title,
+                            base_telephone.price, 
+                            base_brand.title
+                        ORDER BY 
+                            {};
+                        """.format(sort_by)
             cursor.execute(query)
             result = dictfetchall(cursor)
         return result
