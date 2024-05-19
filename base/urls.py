@@ -1,19 +1,16 @@
 from django.urls import path
 
 from base.views import AuthenticatedUsersAPIView, \
-    AdminUsersPatchDeleteAPIView, AdminUsersGetAPIView, TelephonePostAPIView, TelephoneGetAPIView, \
-    TelephonePatchDeleteAPIView, BrandPostAPIView, BrandGetAPIView, BrandPatchDeleteAPIView
+    AdminUsersPatchDeleteAPIView, AdminUsersGetAPIView, \
+    TelephoneGetPostAPIView, \
+    BrandGetPostAPIView, TelephoneGetItemPatchDeleteAPIView, BrandGetItemPatchDeleteAPIView
 
 urlpatterns = [
-    path('product/<int:id>/', TelephoneGetAPIView.as_view(), name='telephones'),
-    path('product/<int:id>/', TelephonePatchDeleteAPIView.as_view(), name='telephones'),
-    path('product/', TelephonePostAPIView.as_view(), name='telephones'),
-    path('product/', TelephoneGetAPIView.as_view(), name='telephones'),
+    path('product/<int:id>/', TelephoneGetItemPatchDeleteAPIView.as_view(), name='telephones'),
+    path('product/', TelephoneGetPostAPIView.as_view(), name='telephones'),
 
-    path('brand/<int:id>/', BrandGetAPIView.as_view(), name='brands'),
-    path('brand/<int:id>/', BrandPatchDeleteAPIView.as_view(), name='brands'),
-    path('brand/', BrandGetAPIView.as_view(), name='brands'),
-    path('brand/', BrandPostAPIView.as_view(), name='brands'),
+    path('brand/<int:id>/', BrandGetItemPatchDeleteAPIView.as_view(), name='brands'),
+    path('brand/', BrandGetPostAPIView.as_view(), name='brands'),
 
     path('user/', AuthenticatedUsersAPIView.as_view(), name='user'),
 

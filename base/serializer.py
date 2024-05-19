@@ -21,7 +21,7 @@ class TelephoneSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Telephone
-        fields = 'title'
+        fields = '__all__'
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
