@@ -14,23 +14,10 @@ class City(models.Model):
     name = models.CharField(max_length=100)
 
 
-class Region(models.Model):
-    name = models.CharField(max_length=100)
-    city = models.ForeignKey(City, on_delete=models.CASCADE)
-
-
-class Address(models.Model):
-    city = models.ForeignKey(City, on_delete=models.CASCADE)
-    region = models.ForeignKey(Region, on_delete=models.CASCADE)
-    street_name = models.CharField(max_length=100)
-    post_code = models.CharField(max_length=10)
-
-
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     image = models.ImageField(upload_to=get_user_image_upload_path, null=True, blank=True)
     number_telephone = models.CharField(max_length=100, null=True, blank=True)
-    address = models.ForeignKey(Address, on_delete=models.CASCADE, null=True, blank=True)
     birth_date = models.DateField(null=True, blank=True)
 
     def __str__(self):
@@ -199,10 +186,15 @@ class UserProfile(models.Model):
         return combined_data
 
 
+class Address(models.Model):
+    city = models.ForeignKey(City, on_delete=models.CASCADE)
+    street_name = models.CharField(max_length=100)
+    post_code = models.CharField(max_length=10)
+
+
 class Order(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
-    number_telephone = models.CharField(max_length=100)
-    address = models.ForeignKey(Address, on_delete=models.CASCADE)
+    full_price = models.IntegerField()
     STATUS_CHOICES = [
         ('Preparation', 'Preparation'),
         ('Dispatch', 'Dispatch'),
@@ -212,32 +204,11 @@ class Order(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
     update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
+    address = models.ForeignKey(Address, on_delete=models.CASCADE)
 
     @classmethod
-    def create_order_with_details(cls, user_id, number_telephone, address_id, status, telephone_id, price, amount):
-        with connection.cursor() as cursor:
-            try:
-                sql_order = """
-                    INSERT INTO orders (user_id, number_telephone, address_id, status, created_time, update_time)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """
-                created_time = timezone.now()
-                cursor.execute(sql_order, [user_id, number_telephone, address_id, status, created_time, created_time])
-                order_id = cursor.lastrowid
-
-                sql_order_details = """
-                    INSERT INTO order_details (order_id, telephone_id, price, amount, created_time)
-                    VALUES (%s, %s, %s, %s, %s)
-                """
-                cursor.execute(sql_order_details, [order_id, telephone_id, price, amount, created_time])
-
-                connection.commit()
-
-                return True
-            except Exception as e:
-                connection.rollback()
-                print(f"Error creating order with details: {e}")
-                return False
+    def create_order_with_details(cls, data):
+        pass
 
 
 class Brand(models.Model):
@@ -330,6 +301,40 @@ class Telephone(models.Model):
     release_date = models.DateField()
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
     update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
+
+    @classmethod
+    def get_list(cls, ids):
+        with connection.cursor() as cursor:
+            placeholders = ', '.join(['%s'] * len(ids))
+
+            query = f"""SELECT 
+                base_telephone.id AS id, 
+                base_telephone.title AS title, 
+                base_telephone.price AS price, 
+                base_brand.title AS brand,
+                base_telephone.description AS description, 
+                base_telephone.diagonal_screen AS diagonal_screen,
+                base_telephone.built_in_memory AS built_in_memory,
+                base_telephone.weight AS weight,
+                base_telephone.number_stock AS number_stock,
+                base_telephone.discount AS discount, 
+                base_telephone.release_date AS release_date,
+                COALESCE(json_agg(base_telephoneimage.image), '[]'::json) AS images
+                FROM base_telephone 
+                JOIN base_brand 
+                    ON base_telephone.brand_id = base_brand.id
+                LEFT JOIN base_telephoneimage 
+                    ON base_telephone.id = base_telephoneimage.telephone_id
+                WHERE base_telephone.id IN ({placeholders})
+                GROUP BY 
+                    base_telephone.id, 
+                    base_brand.title
+                ORDER BY 
+                    base_telephone.title;
+            """
+            cursor.execute(query, ids)
+            data = dictfetchall(cursor)
+        return data
 
     @classmethod
     def get_all(cls, sort_by):
@@ -494,12 +499,13 @@ class TelephoneImage(models.Model):
             cursor.execute(query, [image_id])
 
 
-class OrderDetails(models.Model):
+class order_product_details(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
     telephone = models.ForeignKey(Telephone, on_delete=models.CASCADE)
     price = models.IntegerField()
     amount = models.IntegerField()
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
+    telephone_image = models.ImageField()
 
 
 class Comment(models.Model):
@@ -510,19 +516,7 @@ class Comment(models.Model):
     update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
 
 
-class WishList(models.Model):
-    telephone = models.ForeignKey(Telephone, on_delete=models.CASCADE)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
-
-
-class Review(models.Model):
-    telephone = models.ForeignKey(Telephone, on_delete=models.CASCADE)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
-
-
-class Provider(models.Model):
+class Vendor(models.Model):
     first_name = models.CharField(max_length=50)
     second_name = models.CharField(max_length=60, null=True, blank=True)
     surname = models.CharField(max_length=100)
@@ -531,7 +525,7 @@ class Provider(models.Model):
 
 
 class Delivery(models.Model):
-    provider = models.ForeignKey(Provider, on_delete=models.CASCADE)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
     price = models.ImageField()
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
     update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
