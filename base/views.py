@@ -18,26 +18,27 @@ class TelephoneGetAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            telephone_id = kwargs.get("telephone_id", None)
-            if telephone_id is not None:
+            telephone_id = kwargs.get("id", None)
+            if telephone_id:
                 try:
                     result_get_item = Telephone.get_item(telephone_id)
                     if result_get_item:
                         return Response(result_get_item, status=status.HTTP_200_OK)
-                    return Response({'error': 'Object does not exist'}, status=status.HTTP_404_NOT_FOUND)
+                    return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+                except TypeError:
+                    return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
                 except Exception as e:
-                    write_error_to_file('GET_item_TelephoneAPIView', e)
-                    return Response({'error': 'Failed to retrieve phone information'},
-                                    status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            else:
-                telephones = Telephone.get_all()
-                return Response(telephones, status=status.HTTP_200_OK)
+                    write_error_to_file('GET_item_TelephoneGetAPIView', e)
+                    return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            return Response(Telephone.get_all(), status=status.HTTP_200_OK)
+
         except Exception as e:
-            write_error_to_file('GET_TelephoneAPIView', e)
-            return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            write_error_to_file('GET_TelephoneGetAPIView', e)
+            return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class TelephonePatchPostDeleteAPIView(APIView):
+class TelephonePostAPIView(APIView):
     queryset = Telephone.objects.all()
     serializer = TelephoneSerializer
     permission_classes = [IsAdminOrReadOnly]
@@ -53,9 +54,15 @@ class TelephonePatchPostDeleteAPIView(APIView):
             write_error_to_file('POST_TELEPHONE', e)
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+class TelephonePatchDeleteAPIView(APIView):
+    queryset = Telephone.objects.all()
+    serializer = TelephoneSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
     def delete(self, request, *args, **kwargs):
         try:
-            telephone_id = kwargs.get("telephone_id", None)
+            telephone_id = kwargs.get("id", None)
             return Response(Telephone.delete_item(telephone_id), status=status.HTTP_204_NO_CONTENT)
         except TypeError:
             return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
@@ -65,7 +72,7 @@ class TelephonePatchPostDeleteAPIView(APIView):
 
     def patch(self, request, *args, **kwargs):
         try:
-            telephone_id = kwargs.get("telephone_id", None)
+            telephone_id = kwargs.get("id", None)
             telephone = Telephone.objects.get(pk=telephone_id)
 
             serializer = TelephoneSerializer(instance=telephone, data=request.data, partial=True)
@@ -88,7 +95,7 @@ class BrandGetAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            brand_id = kwargs.get("brand_id", None)
+            brand_id = kwargs.get("id", None)
             if brand_id:
                 try:
                     result_get_item = Brand.get_item(brand_id)
@@ -107,7 +114,7 @@ class BrandGetAPIView(APIView):
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class BrandPostPatchDeleteAPIView(APIView):
+class BrandPostAPIView(APIView):
     queryset = Brand.objects.all()
     serializer = BrandSerializer
     permission_classes = [IsAdminOrReadOnly]
@@ -124,9 +131,15 @@ class BrandPostPatchDeleteAPIView(APIView):
             write_error_to_file('POST_BrandAPIView', e)
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+class BrandPatchDeleteAPIView(APIView):
+    queryset = Brand.objects.all()
+    serializer = BrandSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
     def delete(self, request, *args, **kwargs):
         try:
-            brand_id = kwargs.get("brand_id", None)
+            brand_id = kwargs.get("id", None)
             result = Brand.delete_item(brand_id)
             return Response(result, status=status.HTTP_204_NO_CONTENT)
         except TypeError:
@@ -137,7 +150,7 @@ class BrandPostPatchDeleteAPIView(APIView):
 
     def patch(self, request, *args, **kwargs):
         try:
-            brand_id = kwargs.get("brand_id", None)
+            brand_id = kwargs.get("id", None)
             brand = Brand.objects.get(pk=brand_id)
 
             serializer = BrandSerializer(instance=brand, data=request.data, partial=True)
@@ -232,7 +245,7 @@ class AdminUsersGetAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            user_id = kwargs.get("user_id", None)
+            user_id = kwargs.get("id", None)
             if user_id:
                 try:
                     result_get_item = UserProfile.get_item_admin(user_id)
@@ -258,7 +271,7 @@ class AdminUsersPatchDeleteAPIView(APIView):
     serializer_class = UserSerializer
 
     def patch(self, request, *args, **kwargs):
-        user_id = kwargs.get("user_id", None)
+        user_id = kwargs.get("id", None)
         if not user_id:
             return Response({'error': 'BadRequest'}, status=status.HTTP_400_BAD_REQUEST)
         try:

@@ -487,8 +487,8 @@ class Telephone(models.Model):
                     base_telephone.title;
                 """
             cursor.execute(query, [telephone_id])
-            result = dictfetchall(cursor)
-        return result
+            data = dictfetchall(cursor)
+        return data[0]
 
     @classmethod
     def delete_item(cls, telephone_id):
