@@ -176,7 +176,7 @@ SIMPLE_JWT = {
 
     "ALGORITHM": "HS256",
     "SIGNING_KEY": config['SECRET_KEY'],
-    "VERIFYING_KEY": "",
+    "VERIFYING_KEY": "qwe",
     "AUDIENCE": None,
     "ISSUER": None,
     "JSON_ENCODER": None,

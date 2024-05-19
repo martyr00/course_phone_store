@@ -1,11 +1,13 @@
 from django.contrib.auth.models import User
+from django.core import serializers
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .permission import IsAdminOrReadOnly, AuthenticatedUser, AllowOnlyAdmin
-from .serializer import TelephoneSerializer, UserSerializer, BrandSerializer
+from .serializer import TelephoneSerializer, BrandSerializer, UserSerializerRegistration, UserSerializer, \
+    GetAllTelephoneSerializer
 
 from base.models import Telephone, Brand, UserProfile
 from .utils import write_error_to_file
@@ -13,12 +15,13 @@ from .utils import write_error_to_file
 
 class TelephoneGetPostAPIView(APIView):
     queryset = Telephone.objects.all()
-    serializer = TelephoneSerializer
     permission_classes = [IsAdminOrReadOnly]
 
     def get(self, request, *args, **kwargs):
         try:
-            return Response(Telephone.get_all(), status=status.HTTP_200_OK)
+            result = Telephone.get_all()
+            serialized_result = GetAllTelephoneSerializer(result, many=True)
+            return Response(serialized_result.data, status=status.HTTP_200_OK)
         except Exception as e:
             write_error_to_file('GET_TelephoneGetAPIView', e)
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -112,18 +115,18 @@ class BrandGetItemPatchDeleteAPIView(APIView):
     serializer = BrandSerializer
     permission_classes = [IsAdminOrReadOnly]
 
-    def get(self, request, *args, **kwargs):
-        try:
-            brand_id = kwargs.get("id", None)
-            result_get_item = Brand.get_item(brand_id)
-            if result_get_item:
-                return Response(result_get_item, status=status.HTTP_200_OK)
-            return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
-        except TypeError:
-            return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            write_error_to_file('GET_item_BrandAPIView', e)
-            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    # def get(self, request, *args, **kwargs):
+    #     try:
+    #         brand_id = kwargs.get("id", None)
+    #         result_get_item = Brand.get_item(brand_id)
+    #         if result_get_item:
+    #             return Response(result_get_item, status=status.HTTP_200_OK)
+    #         return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+    #     except TypeError:
+    #         return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+    #     except Exception as e:
+    #         write_error_to_file('GET_item_BrandAPIView', e)
+    #         return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def delete(self, request, *args, **kwargs):
         try:
@@ -158,10 +161,10 @@ class BrandGetItemPatchDeleteAPIView(APIView):
 class Registration(APIView):
     permission_classes = [AllowAny]
     queryset = User.objects.all()
-    serializer_class = UserSerializer
+    serializer_class = UserSerializerRegistration
 
     def post(self, request, *args, **kwargs):
-        serializer = UserSerializer(data=request.data)
+        serializer = UserSerializerRegistration(data=request.data)
         try:
             if serializer.is_valid():
                 tokens = serializer.save()
@@ -233,38 +236,35 @@ class AdminUsersGetAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            user_id = kwargs.get("id", None)
-            if user_id:
-                try:
-                    result_get_item = UserProfile.get_item_admin(user_id)
-                    if result_get_item:
-                        return Response(result_get_item, status=status.HTTP_200_OK)
-                    return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
-                except TypeError:
-                    return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
-                except Exception as e:
-                    write_error_to_file('GET_item_AdminUsersAPIView', e)
-                    return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
             return Response(UserProfile.get_all(), status=status.HTTP_200_OK)
-
         except Exception as e:
             write_error_to_file('GET_AdminUsersAPIView', e)
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class AdminUsersPatchDeleteAPIView(APIView):
+class AdminUsersGetItemPatchDeleteAPIView(APIView):
     permission_classes = [AllowOnlyAdmin]
     queryset = UserProfile.objects.all()
     serializer_class = UserSerializer
+
+    def get(self, *args, **kwargs):
+        try:
+            user_id = kwargs.get("id", None)
+            result_get_item = UserProfile.get_item(user_id)
+            if result_get_item:
+                return Response(result_get_item, status=status.HTTP_200_OK)
+            return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+        except TypeError:
+            return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('GET_item_AdminUsersAPIView', e)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def patch(self, request, *args, **kwargs):
         user_id = kwargs.get("id", None)
         if not user_id:
             return Response({'error': 'BadRequest'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            user = User.objects.get(id=user_id)
-
             data = request.data
             UserProfile.patch(user_id, data)
 
@@ -272,14 +272,19 @@ class AdminUsersPatchDeleteAPIView(APIView):
             if not user_profile:
                 return Response({'error': 'UserProfile not found'}, status=status.HTTP_404_NOT_FOUND)
 
-            user_serializer = UserSerializer(user)
-            return Response(user_serializer.data, status=status.HTTP_200_OK)
+            return Response(user_profile, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             write_error_to_file('PATCH_User', e)
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def delete(self):
-        # TODO
-        pass
+    def delete(self, request, *args, **kwargs):
+        try:
+            user_id = kwargs.get("id", None)
+            return Response(UserProfile.delete(user_id), status=status.HTTP_204_NO_CONTENT)
+        except TypeError:
+            return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('DELETE_TELEPHONE', e)
+            return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

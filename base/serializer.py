@@ -1,8 +1,32 @@
-from .models import Telephone, Brand, UserProfile
+from .models import Telephone, Brand, UserProfile, TelephoneImage
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import serializers
 from django.contrib.auth.models import User
+
+
+class BrandSerializer(serializers.ModelSerializer):
+    title = serializers.CharField(max_length=50)
+
+    class Meta:
+        model = Brand
+        fields = ['title', 'id']
+
+
+class TelephoneImages(serializers.ModelSerializer):
+
+    class Meta:
+        model = TelephoneImage
+        fields = '__all__'
+
+
+class GetAllTelephoneSerializer(serializers.ModelSerializer):
+    brand = serializers.StringRelatedField()  # or you can use BrandSerializer here if available
+    images = serializers.JSONField()
+
+    class Meta:
+        model = Telephone
+        fields = ['id', 'title', 'price', 'brand', 'images']
 
 
 class TelephoneSerializer(serializers.ModelSerializer):
@@ -17,25 +41,44 @@ class TelephoneSerializer(serializers.ModelSerializer):
     number_stock = serializers.IntegerField()
     release_date = serializers.DateField()
     brand_id = serializers.IntegerField()
-    brand = serializers.IntegerField(required=False)
 
     class Meta:
         model = Telephone
-        fields = '__all__'
+        fields = ['title',
+                  'description',
+                  'diagonal_screen',
+                  'built_in_memory',
+                  'price',
+                  'discount',
+                  'recommended_price',
+                  'weight',
+                  'number_stock',
+                  'release_date',
+                  'brand_id']
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(required=False)
+    number_telephone = serializers.CharField(max_length=100, required=False)
+    address = serializers.CharField(max_length=100, required=False)
+    birth_date = serializers.DateField(required=False)
+
     class Meta:
         model = UserProfile
         fields = ['image', 'number_telephone', 'address', 'birth_date']
 
 
-class UserSerializer(serializers.ModelSerializer):
-    userprofile = UserProfileSerializer()
+class UserSerializerRegistration(serializers.ModelSerializer):
+    password = serializers.CharField(max_length=100)
+    userprofile = UserProfileSerializer(required=False)
+    username = serializers.CharField(max_length=50)
+    first_name = serializers.CharField(max_length=50, required=False)
+    last_name = serializers.CharField(max_length=50, required=False)
+    email = serializers.EmailField()
 
     class Meta:
         model = User
-        fields = ['last_login', 'is_superuser', 'username', 'first_name', 'last_name', 'email', 'is_staff', 'is_active', 'date_joined', 'userprofile']
+        fields = ['password', 'username', 'first_name', 'last_name', 'email', 'userprofile']
 
     def create(self, validated_data):
         user = User(
@@ -53,9 +96,27 @@ class UserSerializer(serializers.ModelSerializer):
         return tokens
 
 
-class BrandSerializer(serializers.ModelSerializer):
-    title = serializers.CharField(max_length=50)
+class UserSerializer(serializers.ModelSerializer):
+    userprofile = UserProfileSerializer()
+    username = serializers.CharField(max_length=50)
+    last_login = serializers.DateField()
+    first_name = serializers.CharField(max_length=50)
+    last_name = serializers.CharField(max_length=50)
+    email = serializers.CharField(max_length=100)
+    is_staff = serializers.BooleanField()
+    is_superuser = serializers.BooleanField()
+    is_active = serializers.BooleanField()
 
     class Meta:
-        model = Brand
-        fields = '__all__'
+        model = User
+        fields = [
+            'last_login',
+            'username',
+            'first_name',
+            'last_name',
+            'email',
+            'is_staff',
+            'is_superuser',
+            'is_active',
+            'userprofile'
+        ]

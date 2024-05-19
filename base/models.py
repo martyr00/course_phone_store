@@ -7,7 +7,6 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models, connection, transaction
 from django.utils import timezone
 from psycopg2 import ProgrammingError
-
 from base.utils import get_user_image_upload_path, get_telephone_image_upload_path, dictfetchall
 
 
@@ -148,45 +147,9 @@ class UserProfile(models.Model):
     @classmethod
     def get_item(cls, user_id):
         with connection.cursor() as cursor:
-            query = """
-            SELECT
-                auth_user.last_login AS last_login,
-                auth_user.is_superuser AS is_superuser,
-                auth_user.username AS username,
-                auth_user.first_name AS first_name,
-                auth_user.last_name AS last_name,
-                auth_user.email AS email,
-                auth_user.is_staff AS is_staff,
-                auth_user.is_active AS is_active,
-                auth_user.date_joined AS date_joined,
-                base_userprofile.image AS image,
-                base_userprofile.number_telephone AS number_telephone,
-                base_address.street_name AS street,
-                base_address.post_code AS post_code,
-                base_city.name AS city,
-                base_region.name AS region
-            FROM auth_user JOIN base_userprofile 
-                ON auth_user.id = base_userprofile.user_id
-            LEFT JOIN base_address 
-                ON base_userprofile.address_id = base_address.id
-            LEFT JOIN base_city 
-                ON base_address.city_id = base_city.id
-            LEFT JOIN base_region 
-                ON base_address.region_id = base_region.id
-            WHERE auth_user.id = %s
-            """
-            cursor.execute(query, [user_id])
-            columns = [col[0] for col in cursor.description]
-            result = cursor.fetchone()
-            if result:
-                result = dict(zip(columns, result))
-            return result
-
-    @classmethod
-    def get_item_admin(cls, user_id):
-        with connection.cursor() as cursor:
             cursor.execute("""
                 SELECT
+                    auth_user.id AS id,
                     auth_user.last_login AS last_login,
                     auth_user.is_superuser AS is_superuser,
                     auth_user.username AS username,
@@ -281,17 +244,17 @@ class Brand(models.Model):
     title = models.CharField(max_length=50, unique=True)
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
 
-    @classmethod
-    def get_item(cls, brand_id):
-        with connection.cursor() as cursor:
-            query = """
-                SELECT id, title
-                FROM base_brand
-                WHERE id = %s
-            """
-            cursor.execute(query, [brand_id])
-            result = dictfetchall(cursor)
-            return result
+    # @classmethod
+    # def get_item(cls, brand_id):
+    #     with connection.cursor() as cursor:
+    #         query = """
+    #             SELECT id, title
+    #             FROM base_brand
+    #             WHERE id = %s
+    #         """
+    #         cursor.execute(query, [brand_id])
+    #         result = dictfetchall(cursor)
+    #         return result[0]
 
     @classmethod
     def get_all(cls):
@@ -369,6 +332,34 @@ class Telephone(models.Model):
     update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
 
     @classmethod
+    def get_all(cls):
+        with connection.cursor() as cursor:
+            query = """
+            SELECT 
+                base_telephone.id AS id, 
+                base_telephone.title AS title, 
+                base_telephone.price AS price, 
+                base_brand.title AS brand,
+                COALESCE(json_agg(base_telephoneimage.image), '[]'::json) AS images
+            FROM 
+                base_telephone
+            JOIN 
+                base_brand ON base_telephone.brand_id = base_brand.id
+            LEFT JOIN 
+                base_telephoneimage ON base_telephone.id = base_telephoneimage.telephone_id
+            GROUP BY 
+                 base_telephone.id, 
+                 base_telephone.title,
+                 base_telephone.price, 
+                 base_brand.title
+            ORDER BY 
+                base_telephone.title;
+            """
+            cursor.execute(query)
+            result = dictfetchall(cursor)
+        return result
+
+    @classmethod
     def post_item(cls, data):
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         data['created_time'] = current_time
@@ -430,34 +421,6 @@ class Telephone(models.Model):
             )
 
             return Telephone.get_item(telephone_id)
-
-    @classmethod
-    def get_all(cls):
-        with connection.cursor() as cursor:
-            query = """
-            SELECT 
-                base_telephone.id AS id, 
-                base_telephone.title AS title, 
-                base_telephone.price AS price, 
-                base_brand.title AS brand,
-                COALESCE(json_agg(base_telephoneimage.image), '[]'::json) AS images
-            FROM 
-                base_telephone
-            JOIN 
-                base_brand ON base_telephone.brand_id = base_brand.id
-            LEFT JOIN 
-                base_telephoneimage ON base_telephone.id = base_telephoneimage.telephone_id
-            GROUP BY 
-                 base_telephone.id, 
-                 base_telephone.title,
-                 base_telephone.price, 
-                 base_brand.title
-            ORDER BY 
-                base_telephone.title;
-            """
-            cursor.execute(query)
-            result = dictfetchall(cursor)
-        return result
 
     @classmethod
     def get_item(cls, telephone_id):
