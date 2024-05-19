@@ -104,7 +104,7 @@ class TelephoneGetListAPIView(APIView):
 
     def get(self, request):
         try:
-            telephone_ids_string = request.query_params.getlist('ids')
+            telephone_ids_string = request.query_params.getlist('id')
             result_get_item = Telephone.get_list(telephone_ids_string)
             if result_get_item:
                 return Response(result_get_item, status=status.HTTP_200_OK)
