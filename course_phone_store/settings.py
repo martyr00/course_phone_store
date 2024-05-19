@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'base.apps.BaseConfig',
     'rest_framework_simplejwt',
     'rest_framework',
+    'drf_yasg',
 ]
 
 MIDDLEWARE = [

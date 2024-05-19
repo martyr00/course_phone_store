@@ -15,7 +15,6 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.template.defaulttags import url
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
@@ -25,19 +24,18 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 from rest_framework_swagger.views import get_swagger_view
-
 from base.views import Registration
 
 schema_view = get_swagger_view(title='Pastebin API')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='docs'),
+    path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/v1/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='docs'),
     path('api/v1/', include('base.urls')),
     path('api/v1/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/v1/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('registration/', Registration.as_view(), name='registration'),
+    path('api/v1/registration/', Registration.as_view(), name='qwe'),
 ]
 
 

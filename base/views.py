@@ -11,7 +11,7 @@ from base.models import Telephone, Brand, UserProfile
 from .utils import write_error_to_file
 
 
-class TelephoneAPIView(APIView):
+class TelephoneGetAPIView(APIView):
     queryset = Telephone.objects.all()
     serializer = TelephoneSerializer
     permission_classes = [IsAdminOrReadOnly]
@@ -19,22 +19,28 @@ class TelephoneAPIView(APIView):
     def get(self, request, *args, **kwargs):
         try:
             telephone_id = kwargs.get("telephone_id", None)
-            if telephone_id:
+            if telephone_id is not None:
                 try:
                     result_get_item = Telephone.get_item(telephone_id)
                     if result_get_item:
                         return Response(result_get_item, status=status.HTTP_200_OK)
-                    return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
-                except TypeError:
-                    return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({'error': 'Object does not exist'}, status=status.HTTP_404_NOT_FOUND)
                 except Exception as e:
                     write_error_to_file('GET_item_TelephoneAPIView', e)
-                    return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-            return Response(Telephone.get_all(), status=status.HTTP_200_OK)
+                    return Response({'error': 'Failed to retrieve phone information'},
+                                    status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            else:
+                telephones = Telephone.get_all()
+                return Response(telephones, status=status.HTTP_200_OK)
         except Exception as e:
             write_error_to_file('GET_TelephoneAPIView', e)
-            return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class TelephonePatchPostDeleteAPIView(APIView):
+    queryset = Telephone.objects.all()
+    serializer = TelephoneSerializer
+    permission_classes = [IsAdminOrReadOnly]
 
     def post(self, request, *args, **kwargs):
         try:
@@ -75,7 +81,7 @@ class TelephoneAPIView(APIView):
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class BrandAPIView(APIView):
+class BrandGetAPIView(APIView):
     queryset = Brand.objects.all()
     serializer = BrandSerializer
     permission_classes = [IsAdminOrReadOnly]
@@ -99,6 +105,12 @@ class BrandAPIView(APIView):
         except Exception as e:
             write_error_to_file('GET_BrandAPIView', e)
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class BrandPostPatchDeleteAPIView(APIView):
+    queryset = Brand.objects.all()
+    serializer = BrandSerializer
+    permission_classes = [IsAdminOrReadOnly]
 
     def post(self, request, *args, **kwargs):
         try:
@@ -213,7 +225,7 @@ class AuthenticatedUsersAPIView(APIView):
         pass
 
 
-class AdminUsersAPIView(APIView):
+class AdminUsersGetAPIView(APIView):
     permission_classes = [AllowOnlyAdmin]
     queryset = UserProfile.objects.all()
     serializer_class = UserSerializer
@@ -239,26 +251,11 @@ class AdminUsersAPIView(APIView):
             write_error_to_file('GET_AdminUsersAPIView', e)
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    # def patch(self, request, *args, **kwargs):
-    #     try:
-    #         user_id = kwargs.get("user_id")
-    #         user = User.objects.get(pk=user_id)
-    #
-    #         serializer = UserSerializer(instance=user, data=request.data, partial=True)
-    #         if serializer.is_valid():
-    #             validated_data = serializer.validated_data
-    #             result = UserProfile.patch(user_id, validated_data)
-    #             return Response(result, status=status.HTTP_200_OK)
-    #         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    #
-    #     except User.DoesNotExist:
-    #         return Response(
-    #             {'error': 'User not found'},
-    #             status=status.HTTP_404_NOT_FOUND
-    #         )
-    #     except TypeError as e:
-    #         write_error_to_file('PATCH_AdminUsersAPIView_TypeError', e)
-    #         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class AdminUsersPatchDeleteAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+    queryset = UserProfile.objects.all()
+    serializer_class = UserSerializer
 
     def patch(self, request, *args, **kwargs):
         user_id = kwargs.get("user_id", None)
