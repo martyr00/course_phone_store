@@ -115,6 +115,7 @@ class TelephoneGetListAPIView(APIView):
             write_error_to_file('GET_item_TelephoneGetAPIView', e)
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class BrandGetPostAPIView(APIView):
     queryset = Brand.objects.all()
     serializer = BrandSerializer
