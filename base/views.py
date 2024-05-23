@@ -32,6 +32,10 @@ class TelephoneGetPostAPIView(APIView):
             if sort_dir == 'desc':
                 sort_field += ' DESC'
 
+            if request.user.is_staff:
+                query_params_full_date = request.query_params.get('fulldata', None)
+                if query_params_full_date:
+                    return Response(Telephone.get_full_data_all(sort_field), status=status.HTTP_200_OK)
             result = Telephone.get_all(sort_field)
             serialized_result = GetAllTelephoneSerializer(result, many=True)
             return Response(serialized_result.data, status=status.HTTP_200_OK)

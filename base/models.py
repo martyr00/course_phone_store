@@ -472,6 +472,41 @@ class Telephone(models.Model):
         return data
 
     @classmethod
+    def get_full_data_all(cls, sort_by):
+        with connection.cursor() as cursor:
+            query = """
+                        SELECT 
+                            base_telephone.id AS id, 
+                            base_telephone.title AS title, 
+                            base_telephone.price AS price, 
+                            base_brand.title AS brand,
+                            base_telephone.description AS description, 
+                            base_telephone.diagonal_screen AS diagonal_screen,
+                            base_telephone.built_in_memory AS built_in_memory,
+                            base_telephone.weight AS weight,
+                            base_telephone.number_stock AS number_stock,
+                            base_telephone.discount AS discount, 
+                            base_telephone.release_date AS release_date,
+                            COALESCE(json_agg(base_telephoneimage.image), '[]'::json) AS images
+                        FROM 
+                            base_telephone
+                        JOIN 
+                            base_brand ON base_telephone.brand_id = base_brand.id
+                        LEFT JOIN 
+                            base_telephoneimage ON base_telephone.id = base_telephoneimage.telephone_id
+                        GROUP BY 
+                            base_telephone.id, 
+                            base_telephone.title,
+                            base_telephone.price, 
+                            base_brand.title
+                        ORDER BY 
+                            {};
+                        """.format(sort_by)
+            cursor.execute(query)
+            result = dictfetchall(cursor)
+        return result
+
+    @classmethod
     def get_all(cls, sort_by):
         with connection.cursor() as cursor:
             query = """
@@ -480,13 +515,18 @@ class Telephone(models.Model):
                             base_telephone.title AS title, 
                             base_telephone.price AS price, 
                             base_brand.title AS brand,
+                            base_telephone.description AS description, 
+                            base_telephone.diagonal_screen AS diagonal_screen,
+                            base_telephone.built_in_memory AS built_in_memory,
+                            base_telephone.weight AS weight,
+                            base_telephone.number_stock AS number_stock,
+                            base_telephone.discount AS discount, 
+                            base_telephone.release_date AS release_date,
                             COALESCE(json_agg(base_telephoneimage.image), '[]'::json) AS images
-                        FROM 
-                            base_telephone
-                        JOIN 
-                            base_brand ON base_telephone.brand_id = base_brand.id
-                        LEFT JOIN 
-                            base_telephoneimage ON base_telephone.id = base_telephoneimage.telephone_id
+                        FROM base_telephone JOIN base_brand 
+                            ON base_telephone.brand_id = base_brand.id
+                        LEFT JOIN base_telephoneimage 
+                            ON base_telephone.id = base_telephoneimage.telephone_id
                         GROUP BY 
                             base_telephone.id, 
                             base_telephone.title,
