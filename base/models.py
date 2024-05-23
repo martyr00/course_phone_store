@@ -7,7 +7,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models, connection, transaction
 from django.utils import timezone
 from psycopg2 import ProgrammingError
-from base.utils import get_user_image_upload_path, get_telephone_image_upload_path, dictfetchall
+from base.utils import get_user_image_upload_path, get_telephone_image_upload_path, dictfetchall, write_error_to_file
 
 
 class City(models.Model):
@@ -89,19 +89,9 @@ class UserProfile(models.Model):
                 auth_user.is_active AS is_active,
                 auth_user.date_joined AS date_joined,
                 base_userprofile.image AS image,
-                base_userprofile.number_telephone AS number_telephone,
-                base_address.street_name AS street,
-                base_address.post_code AS post_code,
-                base_city.name AS city,
-                base_region.name AS region
-                FROM auth_user JOIN base_userprofile 
+                base_userprofile.number_telephone AS number_telephone
+                FROM auth_user JOIN base_userprofile
                     ON auth_user.id = base_userprofile.user_id
-                LEFT JOIN base_address 
-                    ON base_userprofile.address_id = base_address.id
-                LEFT JOIN base_city 
-                    ON base_address.city_id = base_city.id
-                LEFT JOIN base_region 
-                    ON base_address.region_id = base_region.id
             """
             cursor.execute(query)
             result = dictfetchall(cursor)
@@ -111,7 +101,7 @@ class UserProfile(models.Model):
     def patch(cls, user_id, data):
         user_fields = ['username', 'first_name', 'last_name', 'email', 'password', 'is_staff', 'is_active',
                        'date_joined']
-        profile_fields = ['image', 'number_telephone', 'address_id', 'birth_date']
+        profile_fields = ['image', 'number_telephone', 'birth_date']
 
         user_data = {key: value for key, value in data.items() if key in user_fields}
         profile_data = {key: value for key, value in data.items() if key in profile_fields}
@@ -158,16 +148,9 @@ class UserProfile(models.Model):
                     auth_user.is_active AS is_active,
                     auth_user.date_joined AS date_joined,
                     base_userprofile.image AS image,
-                    base_userprofile.number_telephone AS number_telephone,
-                    base_address.street_name AS street,
-                    base_address.post_code AS post_code,
-                    base_city.name AS city,
-                    base_region.name AS region
+                    base_userprofile.number_telephone AS number_telephone
                 FROM auth_user
                 JOIN base_userprofile ON auth_user.id = base_userprofile.user_id
-                LEFT JOIN base_address ON base_userprofile.address_id = base_address.id
-                LEFT JOIN base_city ON base_address.city_id = base_city.id
-                LEFT JOIN base_region ON base_address.region_id = base_region.id
                 WHERE auth_user.id = %s
             """, [user_id])
             user_data = dictfetchall(cursor)
@@ -175,16 +158,16 @@ class UserProfile(models.Model):
             cursor.execute("""
                 SELECT
                     base_order.id,
-                    base_order.number_telephone,
+
                     base_order.status,
                     base_order.created_time,
                     base_order.update_time,
                     base_order.address_id,
-                    base_orderdetails.price,
-                    base_orderdetails.amount,
-                    base_orderdetails.telephone_id
+                    base_order_product_details.price,
+                    base_order_product_details.amount,
+                    base_order_product_details.telephone_id
                 FROM base_order
-                JOIN base_orderdetails ON base_order.id = base_orderdetails.order_id
+                JOIN base_order_product_details ON base_order.id = base_order_product_details.order_id
                 WHERE base_order.user_id = %s
             """, [user_id])
             order_data = dictfetchall(cursor)
@@ -204,39 +187,180 @@ class Address(models.Model):
 
 
 class Order(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     full_price = models.IntegerField()
     STATUS_CHOICES = [
-        ('Preparation', 'Preparation'),
-        ('Dispatch', 'Dispatch'),
-        ('Done', 'Done'),
-        ('Canceled', 'Canceled'),
+        ('PREPARATION', 'PREPARATION'),
+        ('DISPATCH', 'DISPATCH'),
+        ('DONE', 'DONE'),
+        ('CANCELED', 'CANCELED'),
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
     update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
     address = models.ForeignKey(Address, on_delete=models.CASCADE)
+    first_name = models.CharField(max_length=50)
+    last_name = models.CharField(max_length=50)
+
+    @staticmethod
+    def post_is_authenticated(validated_data):
+        with transaction.atomic():  # Start a transaction
+            try:
+                with connection.cursor() as cursor:
+                    # Вставка данных адреса
+                    address_query = """
+                        INSERT INTO base_address (street_name, city_id, post_code)
+                        VALUES (%s, %s, %s)
+                        RETURNING id;
+                    """
+                    cursor.execute(address_query, (
+                        validated_data['address']['street'],
+                        validated_data['address']['city'],
+                        validated_data['address']['post_code']
+                    ))
+                    address_result = cursor.fetchone()  # Store the fetch result
+                    if address_result is None:  # Check if result is None
+                        raise Exception("Failed to insert address")
+                    address_id = address_result[0]  # Safely extract address_id
+                    order_full_price = 0
+
+                    for product_data in validated_data['products']:
+                        product_price_query = """
+                            SELECT price FROM base_telephone WHERE id = %s;
+                        """
+                        cursor.execute(product_price_query, (product_data['telephone'],))
+                        product_price = cursor.fetchone()[0]
+
+                        total_price = product_price * product_data['amount']
+
+                        order_full_price += total_price
+
+                    order_query = """
+                        INSERT INTO base_order (user_id, address_id, status, created_time, update_time, full_price, first_name, last_name)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id;
+                    """
+                    cursor.execute(order_query, (
+                        validated_data['user_id'],
+                        address_id,
+                        'PREPARATION',
+                        timezone.now(),  # Используйте текущее время для created_time
+                        timezone.now(),  # Используйте текущее время для update_time
+                        order_full_price,  # Передайте общую стоимость заказа
+                        validated_data['first_name'],
+                        validated_data['last_name']
+                    ))
+
+                    fetch_result = cursor.fetchone()
+                    order_id = fetch_result[0]
+
+                    # Вставка данных продуктов заказа
+                    for product_data in validated_data['products']:
+                        product_price = product_data['telephone']
+                        product_query = """
+                            INSERT INTO base_order_product_details (order_id, telephone_id, price, amount, created_time, telephone_image)
+                            VALUES (%s, %s, %s, %s, %s, %s);
+                        """
+                        cursor.execute(product_query, (
+                            order_id,
+                            product_data['telephone'],
+                            product_price,
+                            product_data['amount'],
+                            None
+                        ))
+
+                return Order.get_item(order_id)
+            except Exception as e:
+                write_error_to_file('POST_GetPostOrderAPIView', e)
+                raise e  # Re-raise the exception so that the transaction is rolled back.
+
+    @staticmethod
+    def post_is_not_authenticated(validated_data):
+       pass
 
     @classmethod
-    def create_order_with_details(cls, data):
-        pass
+    def get_all(cls):
+        with connection.cursor() as cursor:
+            query = """
+            SELECT
+                base_order.status as status,
+                base_order.user_id as user_id,
+                base_order.full_price as full_price,
+                base_order.status as first_name,
+                base_order.status as last_name,
+                base_address.street_name as street,
+                base_address.post_code as post_code
+            FROM base_order JOIN base_address
+                ON base_order.address_id = base_address.id
+            """
+            cursor.execute(query)
+            result = dictfetchall(cursor)
+            return result
+
+    @classmethod
+    def get_item(cls, order_id):
+        with connection.cursor() as cursor:
+            query = """ 
+                   SELECT
+                       base_order.status as status,
+                       base_order.user_id as user_id,
+                       base_order.full_price as full_price,
+                       auth_user.first_name as first_name,
+                       auth_user.last_name as last_name,
+                       base_address.street_name as street,
+                       base_address.post_code as post_code
+                   FROM base_order
+                   JOIN base_address ON base_order.address_id = base_address.id
+                   JOIN auth_user ON base_order.user_id = auth_user.id
+                   WHERE base_order.id = 1;
+               """
+            cursor.execute(query, [order_id])
+            data = dictfetchall(cursor)
+        if data:
+            return data[0]
+        return None
+
+    @classmethod
+    def get_list_by_user(cls, user_id):
+        with connection.cursor() as cursor:
+            query = """ 
+                    SELECT
+                        base_order.status as status,
+                        base_order.user_id as user_id,
+                        base_order.full_price as full_price,
+                        auth_user.first_name as first_name,
+                        auth_user.last_name as last_name,
+                        base_address.street_name as street,
+                        base_address.post_code as post_code
+                    FROM base_order 
+                    JOIN base_address ON base_order.address_id = base_address.id
+                    JOIN auth_user ON base_order.user_id = auth_user.id
+                    WHERE base_order.user_id = %s;
+                """
+            cursor.execute(query, [user_id])
+            data = dictfetchall(cursor)
+        if data:
+            return data
+        return None
 
 
 class Brand(models.Model):
     title = models.CharField(max_length=50, unique=True)
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
 
-    # @classmethod
-    # def get_item(cls, brand_id):
-    #     with connection.cursor() as cursor:
-    #         query = """
-    #             SELECT id, title
-    #             FROM base_brand
-    #             WHERE id = %s
-    #         """
-    #         cursor.execute(query, [brand_id])
-    #         result = dictfetchall(cursor)
-    #         return result[0]
+    @classmethod
+    def get_item(cls, brand_id):
+        with connection.cursor() as cursor:
+            query = """
+                    SELECT id, title
+                    FROM base_brand
+                    WHERE id = %s
+                """
+            cursor.execute(query, [brand_id])
+            result = dictfetchall(cursor)
+            if result:
+                return result[0]
+            return None
 
     @classmethod
     def get_all(cls):
@@ -467,7 +591,9 @@ class Telephone(models.Model):
                 """
             cursor.execute(query, [telephone_id])
             data = dictfetchall(cursor)
-        return data[0]
+        if data:
+            return data[0]
+        return None
 
     @classmethod
     def delete_item(cls, telephone_id):

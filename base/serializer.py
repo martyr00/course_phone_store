@@ -1,4 +1,4 @@
-from .models import Telephone, Brand, UserProfile, TelephoneImage
+from .models import Telephone, Brand, UserProfile, TelephoneImage, Order, order_product_details, Address
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import serializers
@@ -120,3 +120,48 @@ class UserSerializer(serializers.ModelSerializer):
             'is_active',
             'userprofile'
         ]
+
+
+class AddressSerializer(serializers.ModelSerializer):
+    street = serializers.CharField(max_length=50)
+    city = serializers.IntegerField()
+    post_code = serializers.CharField(max_length=10)
+
+    class Meta:
+        model = Address
+        fields = ['street', 'city', 'post_code']
+
+
+class OrderProductsSerializer(serializers.ModelSerializer):
+    amount = serializers.IntegerField()
+    telephone = serializers.IntegerField()
+
+    class Meta:
+        model = order_product_details
+        fields = ['amount', 'telephone']
+
+
+class OrderSerializerAuthUser(serializers.ModelSerializer):
+    first_name = serializers.CharField(max_length=50)
+    last_name = serializers.CharField(max_length=50)
+    address = AddressSerializer()
+    products = OrderProductsSerializer(many=True)
+
+    class Meta:
+        model = Order
+        fields = ['address', 'products', 'first_name', 'last_name']
+
+
+class OrderSerializerNoAuthUser(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)
+    first_name = serializers.CharField(max_length=50)
+    last_name = serializers.CharField(max_length=50)
+    email = serializers.EmailField()
+    number_telephone = serializers.EmailField()
+    address = AddressSerializer()
+    products = OrderProductsSerializer(many=True)
+
+    class Meta:
+        model = User
+        fields = ['id', 'first_name', 'last_name', 'email', 'address', 'number_telephone', 'products']
+

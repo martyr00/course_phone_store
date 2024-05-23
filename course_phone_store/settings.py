@@ -29,7 +29,7 @@ SECRET_KEY = 'django-insecure-+g4q115p6ga_e+=0m)s6ouu4tk@7olv2qj=tmkrli9_=sm$j7y
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['192.168.0.131', ]
+ALLOWED_HOSTS = ['192.168.0.131', '127.0.0.1']
 
 
 # Application definition
@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework_swagger',
+    "corsheaders",
     'drf_spectacular',
     'base.apps.BaseConfig',
     'rest_framework_simplejwt',
@@ -57,6 +58,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
+    "django.middleware.common.CommonMiddleware",
 ]
 
 ROOT_URLCONF = 'course_phone_store.urls'
@@ -164,7 +167,8 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://192.168.0.131:8000/",
+    "http://127.0.0.1:8000",
+    "http://192.168.0.131:8000",
 ]
 
 SIMPLE_JWT = {

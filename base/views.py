@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 
 from .permission import IsAdminOrReadOnly, AuthenticatedUser, AllowOnlyAdmin
 from .serializer import TelephoneSerializer, BrandSerializer, UserSerializerRegistration, UserSerializer, \
-    GetAllTelephoneSerializer
+    GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser
 
 from base.models import Telephone, Brand, UserProfile, Order, City
 from .utils import write_error_to_file
@@ -108,7 +108,7 @@ class TelephoneGetListAPIView(APIView):
             result_get_item = Telephone.get_list(telephone_ids_string)
             if result_get_item:
                 return Response(result_get_item, status=status.HTTP_200_OK)
-            return Response({[]}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({[]}, status=status.HTTP_200_OK)
         except TypeError:
             return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -147,18 +147,20 @@ class BrandGetItemPatchDeleteAPIView(APIView):
     serializer = BrandSerializer
     permission_classes = [IsAdminOrReadOnly]
 
-    # def get(self, request, *args, **kwargs):
-    #     try:
-    #         brand_id = kwargs.get("id", None)
-    #         result_get_item = Brand.get_item(brand_id)
-    #         if result_get_item:
-    #             return Response(result_get_item, status=status.HTTP_200_OK)
-    #         return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
-    #     except TypeError:
-    #         return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
-    #     except Exception as e:
-    #         write_error_to_file('GET_item_BrandAPIView', e)
-    #         return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    def get(self, request, *args, **kwargs):
+        try:
+            brand_id = kwargs.get("id", None)
+            if brand_id is None:
+                return Response({'error': 'ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+            result_get_all = Brand.get_item(brand_id)
+            if result_get_all:
+                return Response(result_get_all, status=status.HTTP_200_OK)
+
+            return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('GET_BrandAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def delete(self, request, *args, **kwargs):
         try:
@@ -169,7 +171,7 @@ class BrandGetItemPatchDeleteAPIView(APIView):
             return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             write_error_to_file('DELETE_BrandAPIView', e)
-            return Response({'error': e},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def patch(self, request, *args, **kwargs):
         try:
@@ -187,7 +189,7 @@ class BrandGetItemPatchDeleteAPIView(APIView):
             return Response({"error": "Brand not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             write_error_to_file('PATCH_BrandAPIView', e)
-            return Response({'error': e},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class Registration(APIView):
@@ -201,7 +203,8 @@ class Registration(APIView):
             if serializer.is_valid():
                 tokens = serializer.save()
                 return Response({
-                    'tokens': tokens
+                    'refresh': tokens.get('refresh'),
+                    'access': tokens.get('access'),
                 }, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -257,9 +260,6 @@ class AuthenticatedUsersAPIView(APIView):
             write_error_to_file('PATCH_AuthenticatedUsersAPIView', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def delete(self):
-        pass
-
 
 class AdminUsersGetAPIView(APIView):
     permission_classes = [AllowOnlyAdmin]
@@ -268,10 +268,11 @@ class AdminUsersGetAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            return Response(UserProfile.get_all(), status=status.HTTP_200_OK)
+            data = UserProfile.get_all()
+            return Response(data, status=status.HTTP_200_OK)
         except Exception as e:
-            write_error_to_file('GET_AdminUsersAPIView', e)
-            return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            write_error_to_file('GET_AdminUsersAPIView', str(e))
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class AdminUsersGetItemPatchDeleteAPIView(APIView):
@@ -322,11 +323,6 @@ class AdminUsersGetItemPatchDeleteAPIView(APIView):
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class OrderAPIView(APIView):
-    permission_classes = [AllowAny]
-    queryset = Order.objects.all()
-
-
 class CityAPIView(APIView):
     permission_classes = [AllowAny]
     queryset = City.objects.all()
@@ -339,3 +335,73 @@ class CityAPIView(APIView):
             write_error_to_file('GET_CityAPIView', e)
             return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+class GetPostOrderAPIView(APIView):
+    permission_classes = [AllowAny]
+    queryset = Order.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        try:
+            if request.user.is_authenticated:
+                serializer = OrderSerializerAuthUser(data=request.data)
+                if serializer.is_valid():
+                    serializer.validated_data['user_id'] = request.user.id
+                    result = Order.post_is_authenticated(serializer.validated_data)
+                    return Response(result, status=status.HTTP_201_CREATED)
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            serializer = OrderSerializerNoAuthUser(data=request.data)
+            if serializer.is_valid():
+                result = Order.post_is_not_authenticated(serializer.validated_data)
+                return Response(result, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            write_error_to_file('POST_GetPostOrderAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def get(self, request, *args, **kwargs):
+        try:
+            result_get_all = Order.get_all()
+            return Response(result_get_all, status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_BrandAPIView', e)
+            return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class GetItemPatchOrderAPIView(APIView):
+    permission_classes = [AllowAny]
+    queryset = Order.objects.all()
+
+    def get(self, *args, **kwargs):
+        try:
+            order_id = kwargs.get("id", None)
+            result_get_item = Order.get_item(order_id)
+            if result_get_item:
+                return Response(result_get_item, status=status.HTTP_200_OK)
+            return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+        except TypeError:
+            return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('GET_item_GetPatchOrderAPIView', e)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def patch(self, request, *args, **kwargs):
+        pass
+
+
+class GetListByUserOrderAPIView(APIView):
+    permission_classes = [AllowAny]
+    queryset = Order.objects.all()
+
+    def get(self, request):
+        try:
+            user_id = request.query_params.get('user')
+            if not user_id:
+                return Response({'error': 'No user_id in query_params'}, status=status.HTTP_400_BAD_REQUEST)
+            result_get_item = Order.get_list_by_user(user_id)
+            if result_get_item:
+                return Response(result_get_item, status=status.HTTP_200_OK)
+            return Response([], status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_item_TelephoneGetAPIView', e)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)

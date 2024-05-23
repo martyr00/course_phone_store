@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 
+
 def get_telephone_image_upload_path(instance, filename):
     telephone_id = instance.telephone_id
     title = instance.title
