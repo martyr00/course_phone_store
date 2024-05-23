@@ -5,7 +5,7 @@ from base.views import AuthenticatedUsersAPIView, \
     TelephoneGetPostAPIView, \
     BrandGetPostAPIView, TelephoneGetItemPatchDeleteAPIView, BrandGetItemPatchDeleteAPIView, \
     AdminUsersGetItemPatchDeleteAPIView, TelephoneGetListAPIView, CityAPIView, GetListByUserOrderAPIView, \
-    GetPostOrderAPIView, GetItemPatchOrderAPIView
+    GetPostOrderAPIView, GetItemPatchOrderAPIView, GetSelfOrderAPIView
 
 urlpatterns = [
     path('/product/<int:id>', TelephoneGetItemPatchDeleteAPIView.as_view(), name='telephone'),
@@ -18,10 +18,11 @@ urlpatterns = [
 
     path('/city', CityAPIView.as_view(), name='cities'),
 
-    path('/self_user', AuthenticatedUsersAPIView.as_view(), name='self-user'),
+    path('/user/self', AuthenticatedUsersAPIView.as_view(), name='self-user'),
+    path('/order/self', GetSelfOrderAPIView.as_view(), name='self-order'),
 
-    path('/users', AdminUsersGetAPIView.as_view(), name='users_for_admin'),
-    path('/users/<int:id>', AdminUsersGetItemPatchDeleteAPIView.as_view(), name='user_for_admin'),
+    path('/user', AdminUsersGetAPIView.as_view(), name='users_for_admin'),
+    path('/user/<int:id>', AdminUsersGetItemPatchDeleteAPIView.as_view(), name='user_for_admin'),
 
     path('/order', GetPostOrderAPIView.as_view(), name='orders'),
     path('/order/<int:id>', GetItemPatchOrderAPIView.as_view(), name='order'),

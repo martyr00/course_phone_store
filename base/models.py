@@ -154,30 +154,7 @@ class UserProfile(models.Model):
                 WHERE auth_user.id = %s
             """, [user_id])
             user_data = dictfetchall(cursor)
-
-            cursor.execute("""
-                SELECT
-                    base_order.id,
-
-                    base_order.status,
-                    base_order.created_time,
-                    base_order.update_time,
-                    base_order.address_id,
-                    base_order_product_details.price,
-                    base_order_product_details.amount,
-                    base_order_product_details.telephone_id
-                FROM base_order
-                JOIN base_order_product_details ON base_order.id = base_order_product_details.order_id
-                WHERE base_order.user_id = %s
-            """, [user_id])
-            order_data = dictfetchall(cursor)
-
-        combined_data = {
-            'user': user_data[0],
-            'orders': order_data
-        }
-
-        return combined_data
+            return user_data[0]
 
 
 class Address(models.Model):
@@ -202,8 +179,29 @@ class Order(models.Model):
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
 
-    @staticmethod
-    def post_is_authenticated(validated_data):
+    @classmethod
+    def get_item_by_user(cls, user_id):
+        with connection.cursor() as cursor:
+            query = """
+                    SELECT
+                        base_order.id,
+                        base_order.status,
+                        base_order.created_time,
+                        base_order.update_time,
+                        base_order.address_id,
+                        base_order_product_details.price,
+                        base_order_product_details.amount,
+                        base_order_product_details.telephone_id
+                    FROM base_order
+                    JOIN base_order_product_details ON base_order.id = base_order_product_details.order_id
+                    WHERE base_order.user_id = %s
+                """
+            cursor.execute(query, [user_id])
+            data = dictfetchall(cursor)
+        return data
+
+    @classmethod
+    def post_is_authenticated(cls, validated_data):
         with transaction.atomic():  # Start a transaction
             try:
                 with connection.cursor() as cursor:
@@ -274,8 +272,8 @@ class Order(models.Model):
                 write_error_to_file('POST_GetPostOrderAPIView', e)
                 raise e  # Re-raise the exception so that the transaction is rolled back.
 
-    @staticmethod
-    def post_is_not_authenticated(validated_data):
+    @classmethod
+    def post_is_not_authenticated(cls, validated_data):
        pass
 
     @classmethod
@@ -312,7 +310,7 @@ class Order(models.Model):
                    FROM base_order
                    JOIN base_address ON base_order.address_id = base_address.id
                    JOIN auth_user ON base_order.user_id = auth_user.id
-                   WHERE base_order.id = 1;
+                   WHERE base_order.id = %s;
                """
             cursor.execute(query, [order_id])
             data = dictfetchall(cursor)

@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 
 from .permission import IsAdminOrReadOnly, AuthenticatedUser, AllowOnlyAdmin
 from .serializer import TelephoneSerializer, BrandSerializer, UserSerializerRegistration, UserSerializer, \
-    GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser
+    GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser, OrderProductsSerializer
 
 from base.models import Telephone, Brand, UserProfile, Order, City
 from .utils import write_error_to_file
@@ -265,6 +265,29 @@ class AuthenticatedUsersAPIView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class GetSelfOrderAPIView(APIView):
+    permission_classes = [AuthenticatedUser]
+    queryset = UserProfile.objects.all()
+    serializer_class = OrderProductsSerializer
+
+    def get(self, request, *args, **kwargs):
+        try:
+            user_id = request.user.id
+            if user_id:
+                result_get_item = Order.get_item_by_user(user_id)
+                return Response(result_get_item, status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    {
+                        'error': 'Authentication credentials were not provided'
+                    },
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+        except Exception as e:
+            write_error_to_file('GET_AuthenticatedUsersAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class AdminUsersGetAPIView(APIView):
     permission_classes = [AllowOnlyAdmin]
     queryset = UserProfile.objects.all()
@@ -373,15 +396,21 @@ class GetPostOrderAPIView(APIView):
 
 
 class GetItemPatchOrderAPIView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [AuthenticatedUser]
     queryset = Order.objects.all()
 
-    def get(self, *args, **kwargs):
+    def get(self, request, *args, **kwargs):
         try:
             order_id = kwargs.get("id", None)
             result_get_item = Order.get_item(order_id)
             if result_get_item:
-                return Response(result_get_item, status=status.HTTP_200_OK)
+                if request.user.is_staff:
+                    return Response(result_get_item, status=status.HTTP_200_OK)
+                user_id = request.user.id
+                if result_get_item.get('user_id') == user_id:
+                    return Response(result_get_item, status=status.HTTP_200_OK)
+                else:
+                    return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
             return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
         except TypeError:
             return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
