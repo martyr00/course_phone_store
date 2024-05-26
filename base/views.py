@@ -1,14 +1,17 @@
+import uuid
+
 from django.contrib.auth.models import User
-from django.core import serializers
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .permission import IsAdminOrReadOnly, AuthenticatedUser, AllowOnlyAdmin
-from .serializer import TelephoneSerializer, BrandSerializer, UserSerializerRegistration, UserSerializer, \
-    GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser, OrderProductsSerializer
+from .serializer import TelephoneSerializer, BrandSerializer, UserSerializer, \
+    GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser, OrderProductsSerializer, \
+    UserRegistrationSerializer
 
 from base.models import Telephone, Brand, UserProfile, Order, City
 from .utils import write_error_to_file
@@ -202,17 +205,22 @@ class BrandGetItemPatchDeleteAPIView(APIView):
 class Registration(APIView):
     permission_classes = [AllowAny]
     queryset = User.objects.all()
-    serializer_class = UserSerializerRegistration
+    serializer_class = UserRegistrationSerializer
 
     def post(self, request, *args, **kwargs):
-        serializer = UserSerializerRegistration(data=request.data)
+        serializer = UserRegistrationSerializer(data=request.data)
         try:
             if serializer.is_valid():
-                tokens = serializer.save()
-                return Response({
-                    'refresh': tokens.get('refresh'),
-                    'access': tokens.get('access'),
-                }, status=status.HTTP_201_CREATED)
+                user_id = UserProfile.post(serializer.validated_data)
+                user = User.objects.get(id=user_id)
+
+                refresh = RefreshToken.for_user(user)
+                tokens = {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+                return Response(tokens, status=status.HTTP_201_CREATED)
+            print("Errors: ", serializer.errors)  # Debugging line
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             write_error_to_file('POST_Registration', e)
@@ -382,7 +390,12 @@ class GetPostOrderAPIView(APIView):
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             serializer = OrderSerializerNoAuthUser(data=request.data)
             if serializer.is_valid():
-                result = Order.post_is_not_authenticated(serializer.validated_data)
+                data = serializer.validated_data
+                data['username'] = uuid.uuid4()
+                data['password'] = uuid.uuid4()
+                user_id = UserProfile.post(data)
+                data['user_id'] = user_id
+                result = Order.post_is_authenticated(serializer.validated_data)
                 return Response(result, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

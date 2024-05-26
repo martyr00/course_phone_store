@@ -40,39 +40,40 @@ class UserProfile(models.Model):
         email = data['email']
         password = make_password(data['password'])
         first_name = data['first_name']
-        second_name = data['second_name']
-
-        image = data['image']
-        number_telephone = data['image']
-        birth_date = data['image']
-        address_id = data['address_id']
+        last_name = data['last_name']
+        image = data.get('image')  # Используем get, чтобы избежать KeyError
+        number_telephone = data.get('number_telephone')
+        birth_date = data.get('birth_date')
 
         with connection.cursor() as cursor:
             cursor.execute("""
-                INSERT INTO auth_user (
-                    username, 
-                    email, 
-                    password, 
-                    first_name, 
-                    second_name, 
-                    is_staff, 
-                    is_active, 
-                    date_joined
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
-                RETURNING id;
-            """, [username, email, password, first_name, second_name, False, True])
+                   INSERT INTO auth_user (
+                       username, 
+                       email, 
+                       password, 
+                       first_name, 
+                       last_name, 
+                       is_staff, 
+                       is_active, 
+                       is_superuser,
+                       date_joined
+                   )
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                   RETURNING id;
+               """, [username, email, password, first_name, last_name, False, True, False])  # Добавлено значение False для is_superuser
             user_id = cursor.fetchone()[0]
+
             cursor.execute("""
-                            INSERT INTO base_userprofile (
-                                user_id,
-                                image, 
-                                number_telephone, 
-                                birth_date, 
-                                address_id, 
-                            )
-                            VALUES (%s, %s, %s, %s, %s)
-                        """, [user_id, image, number_telephone, birth_date, address_id])
+                   INSERT INTO base_userprofile (
+                       user_id,
+                       image, 
+                       number_telephone, 
+                       birth_date
+                   )
+                   VALUES (%s, %s, %s, %s)
+               """, [user_id, image, number_telephone, birth_date])
+
+        return user_id
 
     @classmethod
     def get_all(cls):

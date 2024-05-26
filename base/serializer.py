@@ -57,43 +57,37 @@ class TelephoneSerializer(serializers.ModelSerializer):
                   'brand_id']
 
 
-class UserProfileSerializer(serializers.ModelSerializer):
+class UserRegistrationSerializer(serializers.ModelSerializer):
+    username = serializers.CharField()
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
     image = serializers.ImageField(required=False)
-    number_telephone = serializers.CharField(max_length=100)
-    address = serializers.CharField(max_length=100, required=False)
+    number_telephone = serializers.CharField(required=True)
     birth_date = serializers.DateField(required=False)
 
     class Meta:
         model = UserProfile
-        fields = ['image', 'number_telephone', 'address', 'birth_date']
+        fields = ['username',
+                  'email',
+                  'password',
+                  'first_name',
+                  'last_name',
+                  'image',
+                  'number_telephone',
+                  'birth_date',
+                  ]
 
 
-class UserSerializerRegistration(serializers.ModelSerializer):
-    password = serializers.CharField(max_length=100)
-    userprofile = UserProfileSerializer(required=False)
-    username = serializers.CharField(max_length=50)
-    first_name = serializers.CharField(max_length=50, required=False)
-    last_name = serializers.CharField(max_length=50, required=False)
-    email = serializers.EmailField()
+class UserProfileSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(read_only=True, required=False)  # Make the image field optional
+    number_telephone = serializers.CharField(max_length=100, required=True)
+    birth_date = serializers.DateField(required=False)  # Add this if birth_date is also optional
 
     class Meta:
-        model = User
-        fields = ['password', 'username', 'first_name', 'last_name', 'email', 'userprofile']
-
-    def create(self, validated_data):
-        user = User(
-            username=validated_data['username'],
-            email=validated_data['email'],
-            password=make_password(validated_data['password'])
-        )
-        user.save()
-
-        refresh = RefreshToken.for_user(user)
-        tokens = {
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }
-        return tokens
+        model = UserProfile
+        fields = ['image', 'number_telephone', 'birth_date']
 
 
 class UserSerializer(serializers.ModelSerializer):
