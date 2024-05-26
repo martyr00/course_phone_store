@@ -391,8 +391,8 @@ class GetPostOrderAPIView(APIView):
             serializer = OrderSerializerNoAuthUser(data=request.data)
             if serializer.is_valid():
                 data = serializer.validated_data
-                data['username'] = uuid.uuid4()
-                data['password'] = uuid.uuid4()
+                data['username'] = str(uuid.uuid4())
+                data['password'] = str(uuid.uuid4())
                 user_id = UserProfile.post(data)
                 data['user_id'] = user_id
                 result = Order.post_is_authenticated(serializer.validated_data)
