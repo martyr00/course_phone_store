@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from django.core import serializers
+from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -16,6 +17,7 @@ from .utils import write_error_to_file
 class TelephoneGetPostAPIView(APIView):
     queryset = Telephone.objects.all()
     permission_classes = [IsAdminOrReadOnly]
+    serializers = TelephoneSerializer
 
     def get(self, request, *args, **kwargs):
         try:
@@ -43,6 +45,7 @@ class TelephoneGetPostAPIView(APIView):
             write_error_to_file('GET_TelephoneGetAPIView', e)
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @swagger_auto_schema(request_body=TelephoneSerializer)
     def post(self, request, *args, **kwargs):
         try:
             serializer = TelephoneSerializer(data=request.data)
@@ -366,6 +369,7 @@ class CityAPIView(APIView):
 class GetPostOrderAPIView(APIView):
     permission_classes = [AllowAny]
     queryset = Order.objects.all()
+    serializers = OrderSerializerAuthUser
 
     def post(self, request, *args, **kwargs):
         try:

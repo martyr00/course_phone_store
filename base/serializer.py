@@ -30,7 +30,7 @@ class GetAllTelephoneSerializer(serializers.ModelSerializer):
 
 
 class TelephoneSerializer(serializers.ModelSerializer):
-    title = serializers.CharField(max_length=100)
+    title = serializers.CharField(max_length=100, required=True)
     description = serializers.CharField(max_length=200)
     diagonal_screen = serializers.FloatField()
     built_in_memory = serializers.CharField(max_length=20)
@@ -133,12 +133,12 @@ class AddressSerializer(serializers.ModelSerializer):
 
 
 class OrderProductsSerializer(serializers.ModelSerializer):
+    telephone_id = serializers.IntegerField()
     amount = serializers.IntegerField()
-    telephone = serializers.IntegerField()
 
     class Meta:
         model = order_product_details
-        fields = ['amount', 'telephone']
+        fields = ['telephone_id', 'amount']
 
 
 class OrderSerializerAuthUser(serializers.ModelSerializer):
@@ -157,7 +157,7 @@ class OrderSerializerNoAuthUser(serializers.ModelSerializer):
     first_name = serializers.CharField(max_length=50)
     last_name = serializers.CharField(max_length=50)
     email = serializers.EmailField()
-    number_telephone = serializers.EmailField()
+    number_telephone = serializers.CharField()
     address = AddressSerializer()
     products = OrderProductsSerializer(many=True)
 

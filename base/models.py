@@ -167,8 +167,8 @@ class Order(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     full_price = models.IntegerField()
     STATUS_CHOICES = [
-        ('PREPARATION', 'PREPARATION'),
-        ('DISPATCH', 'DISPATCH'),
+        ('PENDING', 'PENDING'),
+        ('SENDED', 'SENDED'),
         ('DONE', 'DONE'),
         ('CANCELED', 'CANCELED'),
     ]
@@ -193,7 +193,7 @@ class Order(models.Model):
                         base_order_product_details.amount,
                         base_order_product_details.telephone_id
                     FROM base_order
-                    JOIN base_order_product_details ON base_order.id = base_order_product_details.order_id
+                    LEFT JOIN base_order_product_details ON base_order.id = base_order_product_details.order_id
                     WHERE base_order.user_id = %s
                 """
             cursor.execute(query, [user_id])
@@ -202,10 +202,10 @@ class Order(models.Model):
 
     @classmethod
     def post_is_authenticated(cls, validated_data):
-        with transaction.atomic():  # Start a transaction
+        with transaction.atomic():
             try:
                 with connection.cursor() as cursor:
-                    # Вставка данных адреса
+                    # Insert the address
                     address_query = """
                         INSERT INTO base_address (street_name, city_id, post_code)
                         VALUES (%s, %s, %s)
@@ -216,23 +216,27 @@ class Order(models.Model):
                         validated_data['address']['city'],
                         validated_data['address']['post_code']
                     ))
-                    address_result = cursor.fetchone()  # Store the fetch result
-                    if address_result is None:  # Check if result is None
+                    address_result = cursor.fetchone()
+                    if not address_result:
                         raise Exception("Failed to insert address")
-                    address_id = address_result[0]  # Safely extract address_id
+                    address_id = address_result[0]
                     order_full_price = 0
 
                     for product_data in validated_data['products']:
+                        # Fetch the product price
                         product_price_query = """
                             SELECT price FROM base_telephone WHERE id = %s;
                         """
-                        cursor.execute(product_price_query, (product_data['telephone'],))
-                        product_price = cursor.fetchone()[0]
+                        cursor.execute(product_price_query, (product_data['telephone_id'],))
+                        product_result = cursor.fetchone()
+                        if not product_result:
+                            raise Exception(f"No product found with ID {product_data['telephone_id']}")
+                        product_price = product_result[0]
 
                         total_price = product_price * product_data['amount']
-
                         order_full_price += total_price
 
+                    # Insert the order
                     order_query = """
                         INSERT INTO base_order (user_id, address_id, status, created_time, update_time, full_price, first_name, last_name)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -242,35 +246,44 @@ class Order(models.Model):
                         validated_data['user_id'],
                         address_id,
                         'PREPARATION',
-                        timezone.now(),  # Используйте текущее время для created_time
-                        timezone.now(),  # Используйте текущее время для update_time
-                        order_full_price,  # Передайте общую стоимость заказа
+                        timezone.now(),
+                        timezone.now(),
+                        order_full_price,
                         validated_data['first_name'],
                         validated_data['last_name']
                     ))
-
                     fetch_result = cursor.fetchone()
+                    if not fetch_result:
+                        raise Exception("Failed to insert order")
                     order_id = fetch_result[0]
 
-                    # Вставка данных продуктов заказа
                     for product_data in validated_data['products']:
-                        product_price = product_data['telephone']
+                        # Fetch the telephone image
+                        telephone_image_query = """
+                            SELECT image FROM base_telephoneimage WHERE telephone_id = %s LIMIT 1;
+                        """
+                        cursor.execute(telephone_image_query, (product_data['telephone_id'],))
+                        image_result = cursor.fetchone()
+                        telephone_image = image_result[0] if image_result else None
+
+                        # Insert the product details
                         product_query = """
                             INSERT INTO base_order_product_details (order_id, telephone_id, price, amount, created_time, telephone_image)
                             VALUES (%s, %s, %s, %s, %s, %s);
                         """
                         cursor.execute(product_query, (
                             order_id,
-                            product_data['telephone'],
+                            product_data['telephone_id'],
                             product_price,
                             product_data['amount'],
-                            None
+                            timezone.now(),  # Ensure created_time is set correctly
+                            telephone_image
                         ))
 
-                return Order.get_item(order_id)
+                    return cls.get_item(order_id)
             except Exception as e:
                 write_error_to_file('POST_GetPostOrderAPIView', e)
-                raise e  # Re-raise the exception so that the transaction is rolled back.
+                raise e
 
     @classmethod
     def post_is_not_authenticated(cls, validated_data):
@@ -298,25 +311,38 @@ class Order(models.Model):
     @classmethod
     def get_item(cls, order_id):
         with connection.cursor() as cursor:
-            query = """ 
-                   SELECT
-                       base_order.status as status,
-                       base_order.user_id as user_id,
-                       base_order.full_price as full_price,
-                       auth_user.first_name as first_name,
-                       auth_user.last_name as last_name,
-                       base_address.street_name as street,
-                       base_address.post_code as post_code
-                   FROM base_order
-                   JOIN base_address ON base_order.address_id = base_address.id
-                   JOIN auth_user ON base_order.user_id = auth_user.id
-                   WHERE base_order.id = %s;
-               """
-            cursor.execute(query, [order_id])
-            data = dictfetchall(cursor)
-        if data:
-            return data[0]
-        return None
+            order_query = """ 
+               SELECT
+                   base_order.id as id,
+                   base_order.status as status,
+                   base_order.user_id as user_id,
+                   base_order.full_price as full_price,
+                   base_order.first_name as first_name,
+                   base_order.last_name as last_name,
+                   base_address.street_name as street,
+                   base_address.post_code as post_code
+               FROM base_order
+               JOIN base_address ON base_order.address_id = base_address.id
+               JOIN auth_user ON base_order.user_id = auth_user.id
+               WHERE base_order.id = %s;
+           """
+            cursor.execute(order_query, [order_id])
+            order_data = dictfetchall(cursor)
+
+            if not order_data:
+                return None
+            order_details_query = """
+                SELECT *
+                FROM base_order_product_details
+                WHERE order_id = %s;
+            """
+            cursor.execute(order_details_query, [order_id])
+            order_details_data = dictfetchall(cursor)
+            return {
+                "order": order_data,
+                "order_product_details": order_details_data
+            }
+
 
     @classmethod
     def get_list_by_user(cls, user_id):
@@ -680,7 +706,7 @@ class order_product_details(models.Model):
     price = models.IntegerField()
     amount = models.IntegerField()
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
-    telephone_image = models.ImageField()
+    telephone_image = models.ImageField(null=True, blank=True)
 
 
 class Comment(models.Model):

@@ -1,8 +1,6 @@
 from django.urls import path
 
-from base.views import AuthenticatedUsersAPIView, \
-    AdminUsersGetAPIView, \
-    TelephoneGetPostAPIView, \
+from base.views import AuthenticatedUsersAPIView, AdminUsersGetAPIView, TelephoneGetPostAPIView, \
     BrandGetPostAPIView, TelephoneGetItemPatchDeleteAPIView, BrandGetItemPatchDeleteAPIView, \
     AdminUsersGetItemPatchDeleteAPIView, TelephoneGetListAPIView, CityAPIView, GetListByUserOrderAPIView, \
     GetPostOrderAPIView, GetItemPatchOrderAPIView, GetSelfOrderAPIView
