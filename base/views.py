@@ -12,7 +12,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .permission import IsAdminOrReadOnly, AuthenticatedUser, AllowOnlyAdmin
 from .serializer import TelephoneSerializer, BrandSerializer, UserSerializer, \
     GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser, OrderProductsSerializer, \
-    UserRegistrationSerializer
+    UserRegistrationSerializer, VendorSerializer
 
 from base.models import Telephone, Brand, UserProfile, Order, City, Vendor
 from .utils import write_error_to_file
@@ -472,11 +472,10 @@ class VendorGetPostAPIView(APIView):
             sort_dir = request.query_params.get('sort_dir', 'asc')
             sort_dict = {
                 'surname': 'base_vendor.surname',
-                'delivery': 'count_deliveries',
+                'count_deliveries': 'count_deliveries',
             }
             if sort_by not in sort_dict:
                 sort_by = 'title'
-                print('1')
 
             sort_field = sort_dict[sort_by]
             if sort_dir == 'desc':
@@ -486,4 +485,18 @@ class VendorGetPostAPIView(APIView):
         except Exception as e:
             write_error_to_file('GET_VendorGetPostAPIView', e)
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def post(self, request, *args, **kwargs):
+        try:
+            serializer = VendorSerializer(data=request.data)
+            if serializer.is_valid():
+                result = Vendor.post(serializer.validated_data)
+                print(result)
+                return Response(result, status=status.HTTP_201_CREATED)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('POST_VendorGetPostAPIView', e)
+            return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 

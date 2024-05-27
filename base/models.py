@@ -765,20 +765,25 @@ class Vendor(models.Model):
     number_telephone = models.CharField(max_length=100)
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
 
+    def __str__(self):
+        return self.first_name + ' ' + self.second_name + ' ' + self.surname
+
     @classmethod
     def get_all(cls, sort_by):
         with connection.cursor() as cursor:
             query = """
                 SELECT
+                    base_vendor.id,
                     base_vendor.first_name,
                     base_vendor.second_name,
                     base_vendor.surname,
                     base_vendor.number_telephone,
                     base_vendor.created_time,
                     COUNT(base_delivery.id) as count_deliveries
-                FROM base_vendor JOIN base_delivery 
+                FROM base_vendor LEFT JOIN base_delivery 
                     ON base_vendor.id = base_delivery.vendor_id
                 GROUP BY 
+                    base_vendor.id,
                     base_vendor.created_time, 
                     base_vendor.number_telephone, 
                     base_vendor.surname, 
@@ -802,7 +807,7 @@ class Vendor(models.Model):
                     created_time
                 )
                 VALUES (%s, %s, %s, %s, %s)
-                RETURNING *;
+                RETURNING id;
             """
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute(
@@ -810,35 +815,38 @@ class Vendor(models.Model):
                     data.get('first_name'),
                     data.get('second_name'),
                     data.get('first_name'),
-                    data.get('second_name'),
+                    data.get('number_telephone'),
                     current_time])
-            new_vendor = cursor.lastrowid
-        return new_vendor
+            new_vendor_id = cursor.fetchone()[0]
+            print(new_vendor_id)
+        return Vendor.get_item(new_vendor_id)
 
     @classmethod
     def get_item(cls, vendor_id):
         with connection.cursor() as cursor:
-            query = """
-                    SELECT
-                        base_vendor.first_name,
-                        base_vendor.second_name,
-                        base_vendor.surname,
-                        base_vendor.number_telephone,
-                        base_vendor.created_time,
-                        COUNT(base_delivery.id)
-                    FROM base_vendor JOIN base_delivery 
-                        ON base_vendor.id = base_delivery.vendor_id
-                    GROUP BY 
-                        base_vendor.created_time, 
-                        base_vendor.number_telephone, 
-                        base_vendor.surname, 
-                        base_vendor.second_name, 
-                        base_vendor.first_name
-                    WHERE base_vendor.id = %s
-                """
-            cursor.execute(query, [vendor_id])
-            result = dictfetchall(cursor)
-        return result
+            query_vendor = """
+                SELECT
+                    first_name,
+                    second_name,
+                    surname,
+                    number_telephone,
+                    created_time
+                FROM base_vendor
+                WHERE id = %s;
+            """
+            cursor.execute(query_vendor, [vendor_id])
+            result_vendor = dictfetchall(cursor)
+
+            query_delivery = """
+                SELECT
+                    *
+                FROM base_delivery
+                WHERE vendor_id = %s;
+            """
+            cursor.execute(query_delivery, [vendor_id])
+            result_delivery = dictfetchall(cursor)
+
+        return {**result_vendor[0], "delivery": result_delivery}
 
     @classmethod
     def patch(cls, vendor_id, data):

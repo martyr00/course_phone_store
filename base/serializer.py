@@ -1,4 +1,4 @@
-from .models import Telephone, Brand, UserProfile, TelephoneImage, Order, order_product_details, Address
+from .models import Telephone, Brand, UserProfile, TelephoneImage, Order, order_product_details, Address, Vendor
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import serializers
@@ -159,3 +159,13 @@ class OrderSerializerNoAuthUser(serializers.ModelSerializer):
         model = User
         fields = ['id', 'first_name', 'last_name', 'email', 'address', 'number_telephone', 'products']
 
+
+class VendorSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(max_length=50, required=True)
+    second_name = serializers.CharField(max_length=50, required=True)
+    surname = serializers.CharField(max_length=50, required=True)
+    number_telephone = serializers.CharField(max_length=12, required=True)
+
+    class Meta:
+        model = Vendor
+        fields = ['first_name', 'second_name', 'surname', 'number_telephone']
