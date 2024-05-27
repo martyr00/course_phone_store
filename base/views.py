@@ -1,6 +1,7 @@
 import uuid
 
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
@@ -386,6 +387,8 @@ class GetPostOrderAPIView(APIView):
                 if serializer.is_valid():
                     serializer.validated_data['user_id'] = request.user.id
                     result = Order.post(serializer.validated_data)
+                    if isinstance(result, dict) and 'error' in result:
+                        return Response(result, status=status.HTTP_400_BAD_REQUEST)
                     return Response(result, status=status.HTTP_201_CREATED)
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             serializer = OrderSerializerNoAuthUser(data=request.data)
@@ -396,6 +399,8 @@ class GetPostOrderAPIView(APIView):
                 user_id = UserProfile.post(data)
                 data['user_id'] = user_id
                 result = Order.post(serializer.validated_data)
+                if isinstance(result, dict) and 'error' in result:
+                    return Response(result, status=status.HTTP_400_BAD_REQUEST)
                 return Response(result, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

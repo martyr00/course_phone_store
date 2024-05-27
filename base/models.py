@@ -2,6 +2,7 @@ from datetime import datetime
 
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models, connection, transaction
 from django.utils import timezone
@@ -467,23 +468,24 @@ class Telephone(models.Model):
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with connection.cursor() as cursor:
             query_telephone = """
-                SELECT base_telephone.number_stock as amount
-                FROM base_telephone
-                WHERE id = %s
-            """
+                   SELECT base_telephone.number_stock as amount
+                   FROM base_telephone
+                   WHERE id = %s
+               """
             cursor.execute(query_telephone, [telephone_id])
-            data = dictfetchall(cursor)
-            old_amount = data[0]['amount']
+            data = cursor.fetchone()
+            old_amount = data[0]
             if amount < 0 and abs(amount) > old_amount:
-                raise ValueError("There are not enough items in stock to complete the operation")
+                raise ValidationError("There are not enough items in stock to complete the operation",
+                                      code='stock_error', params={'telephone_id': telephone_id})
             new_amount = old_amount + amount
             query_telephone = """
-                UPDATE base_telephone
-                SET number_stock = %s, update_time = %s
-                WHERE id = %s
-            """
+                   UPDATE base_telephone
+                   SET number_stock = %s, update_time = %s
+                   WHERE id = %s
+               """
             cursor.execute(query_telephone, [new_amount, current_time, telephone_id])
-            return Telephone.get_item(telephone_id)
+            return cls.objects.get(id=telephone_id)
 
 
 class TelephoneImage(models.Model):
@@ -560,10 +562,10 @@ class Order(models.Model):
             try:
                 with connection.cursor() as cursor:
                     address_query = """
-                        INSERT INTO base_address (street_name, city_id, post_code)
-                        VALUES (%s, %s, %s)
-                        RETURNING id;
-                    """
+                            INSERT INTO base_address (street_name, city_id, post_code)
+                            VALUES (%s, %s, %s)
+                            RETURNING id;
+                        """
                     cursor.execute(address_query, (
                         validated_data['address']['street'],
                         validated_data['address']['city'],
@@ -576,11 +578,17 @@ class Order(models.Model):
                     order_full_price = 0
 
                     for product_data in validated_data['products']:
-                        print(-product_data['amount'])
-                        Telephone.edit_amount(product_data['telephone_id'], -product_data['amount'])
+                        try:
+                            Telephone.edit_amount(product_data['telephone_id'], -product_data['amount'])
+                        except ValidationError as e:
+                            return {
+                                'error': e.message,
+                                'telephone_id': e.params['telephone_id']
+                            }
+
                         product_price_query = """
-                            SELECT price FROM base_telephone WHERE id = %s;
-                        """
+                                SELECT price FROM base_telephone WHERE id = %s;
+                            """
                         cursor.execute(product_price_query, (product_data['telephone_id'],))
                         product_result = cursor.fetchone()
                         if not product_result:
@@ -592,19 +600,19 @@ class Order(models.Model):
 
                     # Insert the order
                     order_query = """
-                        INSERT INTO base_order (
-                            user_id, 
-                            address_id, 
-                            status, 
-                            created_time, 
-                            update_time, 
-                            full_price, 
-                            first_name, 
-                            last_name
-                            )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        RETURNING id;
-                    """
+                            INSERT INTO base_order (
+                                user_id, 
+                                address_id, 
+                                status, 
+                                created_time, 
+                                update_time, 
+                                full_price, 
+                                first_name, 
+                                last_name
+                                )
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            RETURNING id;
+                        """
                     cursor.execute(order_query, (
                         validated_data['user_id'],
                         address_id,
@@ -623,24 +631,24 @@ class Order(models.Model):
                     for product_data in validated_data['products']:
                         # Fetch the telephone image
                         telephone_image_query = """
-                            SELECT image FROM base_telephoneimage WHERE telephone_id = %s LIMIT 1;
-                        """
+                                SELECT image FROM base_telephoneimage WHERE telephone_id = %s LIMIT 1;
+                            """
                         cursor.execute(telephone_image_query, (product_data['telephone_id'],))
                         image_result = cursor.fetchone()
                         telephone_image = image_result[0] if image_result else None
 
                         # Insert the product details
                         product_query = """
-                            INSERT INTO base_order_product_details (
-                                order_id, 
-                                telephone_id, 
-                                price, 
-                                amount, 
-                                created_time, 
-                                telephone_image
-                            )
-                            VALUES (%s, %s, %s, %s, %s, %s);
-                        """
+                                INSERT INTO base_order_product_details (
+                                    order_id, 
+                                    telephone_id, 
+                                    price, 
+                                    amount, 
+                                    created_time, 
+                                    telephone_image
+                                )
+                                VALUES (%s, %s, %s, %s, %s, %s);
+                            """
                         cursor.execute(product_query, (
                             order_id,
                             product_data['telephone_id'],
@@ -650,7 +658,7 @@ class Order(models.Model):
                             telephone_image
                         ))
 
-                    return cls.get_item(order_id)
+                    return cls.objects.get(id=order_id)
             except Exception as e:
                 write_error_to_file('POST_GetPostOrderAPIView', e)
                 raise e
