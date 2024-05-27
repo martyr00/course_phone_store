@@ -1,4 +1,3 @@
-import os
 from datetime import datetime
 
 from django.contrib.auth.hashers import make_password
@@ -60,7 +59,7 @@ class UserProfile(models.Model):
                    )
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
                    RETURNING id;
-               """, [username, email, password, first_name, last_name, False, True, False])  # Добавлено значение False для is_superuser
+               """, [username, email, password, first_name, last_name, False, True, False])
             user_id = cursor.fetchone()[0]
 
             cursor.execute("""
@@ -593,7 +592,16 @@ class Order(models.Model):
 
                     # Insert the order
                     order_query = """
-                        INSERT INTO base_order (user_id, address_id, status, created_time, update_time, full_price, first_name, last_name)
+                        INSERT INTO base_order (
+                            user_id, 
+                            address_id, 
+                            status, 
+                            created_time, 
+                            update_time, 
+                            full_price, 
+                            first_name, 
+                            last_name
+                            )
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id;
                     """
@@ -623,7 +631,14 @@ class Order(models.Model):
 
                         # Insert the product details
                         product_query = """
-                            INSERT INTO base_order_product_details (order_id, telephone_id, price, amount, created_time, telephone_image)
+                            INSERT INTO base_order_product_details (
+                                order_id, 
+                                telephone_id, 
+                                price, 
+                                amount, 
+                                created_time, 
+                                telephone_image
+                            )
                             VALUES (%s, %s, %s, %s, %s, %s);
                         """
                         cursor.execute(product_query, (
@@ -984,14 +999,29 @@ class Delivery(models.Model):
             fetch_result = cursor.fetchone()
             if not fetch_result:
                 raise Exception({'error': 'Failed to patch delivery'})
-            delivery = fetch_result
+        delivery = fetch_result
 
-            return delivery
+        return delivery
 
     @classmethod
-    def delete_item(cls):
-        # TODO:
-        pass
+    def delete_item(cls, delivery_id):
+        with transaction.atomic():
+            try:
+                with connection.cursor() as cursor:
+                    delete_delivery_details_query = """
+                            DELETE FROM base_delivery_order
+                            WHERE delivery_id = %s;
+                        """
+                    cursor.execute(delete_delivery_details_query, [delivery_id])
+
+                    delete_delivery_query = """
+                            DELETE FROM base_delivery
+                            WHERE id = %s;
+                        """
+                    cursor.execute(delete_delivery_query, [delivery_id])
+            except Exception as e:
+                write_error_to_file('DELETE_classmethod_Delivery', e)
+                raise e
 
 
 class delivery_details(models.Model):
