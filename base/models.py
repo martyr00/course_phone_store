@@ -775,7 +775,7 @@ class Vendor(models.Model):
                     base_vendor.surname,
                     base_vendor.number_telephone,
                     base_vendor.created_time,
-                    COUNT(base_delivery.id)
+                    COUNT(base_delivery.id) as count_deliveries
                 FROM base_vendor JOIN base_delivery 
                     ON base_vendor.id = base_delivery.vendor_id
                 GROUP BY 

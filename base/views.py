@@ -460,3 +460,30 @@ class OrderGetListByUserAPIView(APIView):
         except Exception as e:
             write_error_to_file('GET_item_TelephoneGetAPIView', e)
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class VendorGetPostAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+    queryset = Vendor.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        try:
+            sort_by = request.query_params.get('sort_by', 'surname')
+            sort_dir = request.query_params.get('sort_dir', 'asc')
+            sort_dict = {
+                'surname': 'base_vendor.surname',
+                'delivery': 'count_deliveries',
+            }
+            if sort_by not in sort_dict:
+                sort_by = 'title'
+                print('1')
+
+            sort_field = sort_dict[sort_by]
+            if sort_dir == 'desc':
+                sort_field += ' DESC'
+            result = Vendor.get_all(sort_field)
+            return Response(result, status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_VendorGetPostAPIView', e)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

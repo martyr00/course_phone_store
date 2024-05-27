@@ -3,7 +3,7 @@ from django.urls import path
 from base.views import UsersAuthenticatedGetPatchAPIView, UsersAdminGetAPIView, TelephoneGetPostAPIView, \
     BrandGetPostAPIView, TelephoneGetItemPatchDeleteAPIView, BrandGetItemPatchDeleteAPIView, \
     UsersAdminGetItemPatchDeleteAPIView, TelephoneGetListAPIView, CityAPIView, OrderGetListByUserAPIView, \
-    OrderGetPostAPIView, OrderGetItemPatchAPIView, OrderGetSelfAPIView
+    OrderGetPostAPIView, OrderGetItemPatchAPIView, OrderGetSelfAPIView, VendorGetPostAPIView
 
 urlpatterns = [
     path('/product/<int:id>', TelephoneGetItemPatchDeleteAPIView.as_view(), name='telephone'),
@@ -25,4 +25,6 @@ urlpatterns = [
     path('/order', OrderGetPostAPIView.as_view(), name='orders'),
     path('/order/<int:id>', OrderGetItemPatchAPIView.as_view(), name='order'),
     path('/order_by_user_id', OrderGetListByUserAPIView.as_view(), name='order_by_user_id'),
+
+    path('/vendor', VendorGetPostAPIView.as_view(), name='vendor'),
 ]
