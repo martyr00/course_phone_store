@@ -164,211 +164,6 @@ class Address(models.Model):
     post_code = models.CharField(max_length=10)
 
 
-class Order(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    full_price = models.IntegerField()
-    STATUS_CHOICES = [
-        ('PENDING', 'PENDING'),
-        ('SENDED', 'SENDED'),
-        ('DONE', 'DONE'),
-        ('CANCELED', 'CANCELED'),
-    ]
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
-    created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
-    address = models.ForeignKey(Address, on_delete=models.CASCADE)
-    first_name = models.CharField(max_length=50)
-    last_name = models.CharField(max_length=50)
-
-    @classmethod
-    def get_item_by_user(cls, user_id):
-        with connection.cursor() as cursor:
-            query = """
-                    SELECT
-                        base_order.id,
-                        base_order.status,
-                        base_order.created_time,
-                        base_order.update_time,
-                        base_order.address_id,
-                        base_order_product_details.price,
-                        base_order_product_details.amount,
-                        base_order_product_details.telephone_id
-                    FROM base_order
-                    LEFT JOIN base_order_product_details ON base_order.id = base_order_product_details.order_id
-                    WHERE base_order.user_id = %s
-                """
-            cursor.execute(query, [user_id])
-            data = dictfetchall(cursor)
-        return data
-
-    @classmethod
-    def post_is_authenticated(cls, validated_data):
-        with transaction.atomic():
-            try:
-                with connection.cursor() as cursor:
-                    # Insert the address
-                    address_query = """
-                        INSERT INTO base_address (street_name, city_id, post_code)
-                        VALUES (%s, %s, %s)
-                        RETURNING id;
-                    """
-                    cursor.execute(address_query, (
-                        validated_data['address']['street'],
-                        validated_data['address']['city'],
-                        validated_data['address']['post_code']
-                    ))
-                    address_result = cursor.fetchone()
-                    if not address_result:
-                        raise Exception("Failed to insert address")
-                    address_id = address_result[0]
-                    order_full_price = 0
-
-                    for product_data in validated_data['products']:
-                        # Fetch the product price
-                        product_price_query = """
-                            SELECT price FROM base_telephone WHERE id = %s;
-                        """
-                        cursor.execute(product_price_query, (product_data['telephone_id'],))
-                        product_result = cursor.fetchone()
-                        if not product_result:
-                            raise Exception(f"No product found with ID {product_data['telephone_id']}")
-                        product_price = product_result[0]
-
-                        total_price = product_price * product_data['amount']
-                        order_full_price += total_price
-
-                    # Insert the order
-                    order_query = """
-                        INSERT INTO base_order (user_id, address_id, status, created_time, update_time, full_price, first_name, last_name)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        RETURNING id;
-                    """
-                    cursor.execute(order_query, (
-                        validated_data['user_id'],
-                        address_id,
-                        'PREPARATION',
-                        timezone.now(),
-                        timezone.now(),
-                        order_full_price,
-                        validated_data['first_name'],
-                        validated_data['last_name']
-                    ))
-                    fetch_result = cursor.fetchone()
-                    if not fetch_result:
-                        raise Exception("Failed to insert order")
-                    order_id = fetch_result[0]
-
-                    for product_data in validated_data['products']:
-                        # Fetch the telephone image
-                        telephone_image_query = """
-                            SELECT image FROM base_telephoneimage WHERE telephone_id = %s LIMIT 1;
-                        """
-                        cursor.execute(telephone_image_query, (product_data['telephone_id'],))
-                        image_result = cursor.fetchone()
-                        telephone_image = image_result[0] if image_result else None
-
-                        # Insert the product details
-                        product_query = """
-                            INSERT INTO base_order_product_details (order_id, telephone_id, price, amount, created_time, telephone_image)
-                            VALUES (%s, %s, %s, %s, %s, %s);
-                        """
-                        cursor.execute(product_query, (
-                            order_id,
-                            product_data['telephone_id'],
-                            product_price,
-                            product_data['amount'],
-                            timezone.now(),  # Ensure created_time is set correctly
-                            telephone_image
-                        ))
-
-                    return cls.get_item(order_id)
-            except Exception as e:
-                write_error_to_file('POST_GetPostOrderAPIView', e)
-                raise e
-
-    @classmethod
-    def post_is_not_authenticated(cls, validated_data):
-       pass
-
-    @classmethod
-    def get_all(cls):
-        with connection.cursor() as cursor:
-            query = """
-            SELECT
-                base_order.status as status,
-                base_order.user_id as user_id,
-                base_order.full_price as full_price,
-                base_order.status as first_name,
-                base_order.status as last_name,
-                base_address.street_name as street,
-                base_address.post_code as post_code
-            FROM base_order JOIN base_address
-                ON base_order.address_id = base_address.id
-            """
-            cursor.execute(query)
-            result = dictfetchall(cursor)
-            return result
-
-    @classmethod
-    def get_item(cls, order_id):
-        with connection.cursor() as cursor:
-            order_query = """ 
-               SELECT
-                   base_order.id as id,
-                   base_order.status as status,
-                   base_order.user_id as user_id,
-                   base_order.full_price as full_price,
-                   base_order.first_name as first_name,
-                   base_order.last_name as last_name,
-                   base_address.street_name as street,
-                   base_address.post_code as post_code
-               FROM base_order
-               JOIN base_address ON base_order.address_id = base_address.id
-               JOIN auth_user ON base_order.user_id = auth_user.id
-               WHERE base_order.id = %s;
-           """
-            cursor.execute(order_query, [order_id])
-            order_data = dictfetchall(cursor)
-
-            if not order_data:
-                return None
-            order_details_query = """
-                SELECT *
-                FROM base_order_product_details
-                WHERE order_id = %s;
-            """
-            cursor.execute(order_details_query, [order_id])
-            order_details_data = dictfetchall(cursor)
-            return {
-                "order": order_data,
-                "order_product_details": order_details_data
-            }
-
-
-    @classmethod
-    def get_list_by_user(cls, user_id):
-        with connection.cursor() as cursor:
-            query = """ 
-                    SELECT
-                        base_order.status as status,
-                        base_order.user_id as user_id,
-                        base_order.full_price as full_price,
-                        auth_user.first_name as first_name,
-                        auth_user.last_name as last_name,
-                        base_address.street_name as street,
-                        base_address.post_code as post_code
-                    FROM base_order 
-                    JOIN base_address ON base_order.address_id = base_address.id
-                    JOIN auth_user ON base_order.user_id = auth_user.id
-                    WHERE base_order.user_id = %s;
-                """
-            cursor.execute(query, [user_id])
-            data = dictfetchall(cursor)
-        if data:
-            return data
-        return None
-
-
 class Brand(models.Model):
     title = models.CharField(max_length=50, unique=True)
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
@@ -619,12 +414,11 @@ class Telephone(models.Model):
             query_telephone = f"""
                       UPDATE base_telephone
                       SET {set_clause}
-                      WHERE id = %s;
+                      WHERE id = %s
                   """
             cursor.execute(
                 query_telephone, list(data.values()) + [telephone_id]
             )
-
             return Telephone.get_item(telephone_id)
 
     @classmethod
@@ -669,6 +463,29 @@ class Telephone(models.Model):
                 """
             cursor.execute(query, [telephone_id])
 
+    @classmethod
+    def edit_amount(cls, telephone_id, amount):
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with connection.cursor() as cursor:
+            query_telephone = """
+                SELECT base_telephone.number_stock as amount
+                FROM base_telephone
+                WHERE id = %s
+            """
+            cursor.execute(query_telephone, [telephone_id])
+            data = dictfetchall(cursor)
+            old_amount = data[0]['amount']
+            if amount < 0 and abs(amount) > old_amount:
+                raise ValueError("There are not enough items in stock to complete the operation")
+            new_amount = old_amount + amount
+            query_telephone = """
+                UPDATE base_telephone
+                SET number_stock = %s, update_time = %s
+                WHERE id = %s
+            """
+            cursor.execute(query_telephone, [new_amount, current_time, telephone_id])
+            return Telephone.get_item(telephone_id)
+
 
 class TelephoneImage(models.Model):
     title = models.CharField(max_length=100, unique=True)
@@ -701,6 +518,206 @@ class TelephoneImage(models.Model):
             cursor.execute(query, [image_id])
 
 
+class Order(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    full_price = models.IntegerField()
+    STATUS_CHOICES = [
+        ('PENDING', 'PENDING'),
+        ('SENDED', 'SENDED'),
+        ('DONE', 'DONE'),
+        ('CANCELED', 'CANCELED'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
+    update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
+    address = models.ForeignKey(Address, on_delete=models.CASCADE)
+    first_name = models.CharField(max_length=50)
+    last_name = models.CharField(max_length=50)
+
+    @classmethod
+    def get_item_by_user(cls, user_id):
+        with connection.cursor() as cursor:
+            query = """
+                    SELECT
+                        base_order.id,
+                        base_order.status,
+                        base_order.created_time,
+                        base_order.update_time,
+                        base_order.address_id,
+                        base_order_product_details.price,
+                        base_order_product_details.amount,
+                        base_order_product_details.telephone_id
+                    FROM base_order
+                    LEFT JOIN base_order_product_details ON base_order.id = base_order_product_details.order_id
+                    WHERE base_order.user_id = %s
+                """
+            cursor.execute(query, [user_id])
+            data = dictfetchall(cursor)
+        return data
+
+    @classmethod
+    def post(cls, validated_data):
+        with transaction.atomic():
+            try:
+                with connection.cursor() as cursor:
+                    address_query = """
+                        INSERT INTO base_address (street_name, city_id, post_code)
+                        VALUES (%s, %s, %s)
+                        RETURNING id;
+                    """
+                    cursor.execute(address_query, (
+                        validated_data['address']['street'],
+                        validated_data['address']['city'],
+                        validated_data['address']['post_code']
+                    ))
+                    address_result = cursor.fetchone()
+                    if not address_result:
+                        raise Exception("Failed to insert address")
+                    address_id = address_result[0]
+                    order_full_price = 0
+
+                    for product_data in validated_data['products']:
+                        print(-product_data['amount'])
+                        Telephone.edit_amount(product_data['telephone_id'], -product_data['amount'])
+                        product_price_query = """
+                            SELECT price FROM base_telephone WHERE id = %s;
+                        """
+                        cursor.execute(product_price_query, (product_data['telephone_id'],))
+                        product_result = cursor.fetchone()
+                        if not product_result:
+                            raise Exception(f"No product found with ID {product_data['telephone_id']}")
+                        product_price = product_result[0]
+
+                        total_price = product_price * product_data['amount']
+                        order_full_price += total_price
+
+                    # Insert the order
+                    order_query = """
+                        INSERT INTO base_order (user_id, address_id, status, created_time, update_time, full_price, first_name, last_name)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id;
+                    """
+                    cursor.execute(order_query, (
+                        validated_data['user_id'],
+                        address_id,
+                        'PREPARATION',
+                        timezone.now(),
+                        timezone.now(),
+                        order_full_price,
+                        validated_data['first_name'],
+                        validated_data['last_name']
+                    ))
+                    fetch_result = cursor.fetchone()
+                    if not fetch_result:
+                        raise Exception("Failed to insert order")
+                    order_id = fetch_result[0]
+
+                    for product_data in validated_data['products']:
+                        # Fetch the telephone image
+                        telephone_image_query = """
+                            SELECT image FROM base_telephoneimage WHERE telephone_id = %s LIMIT 1;
+                        """
+                        cursor.execute(telephone_image_query, (product_data['telephone_id'],))
+                        image_result = cursor.fetchone()
+                        telephone_image = image_result[0] if image_result else None
+
+                        # Insert the product details
+                        product_query = """
+                            INSERT INTO base_order_product_details (order_id, telephone_id, price, amount, created_time, telephone_image)
+                            VALUES (%s, %s, %s, %s, %s, %s);
+                        """
+                        cursor.execute(product_query, (
+                            order_id,
+                            product_data['telephone_id'],
+                            product_price,
+                            product_data['amount'],
+                            timezone.now(),  # Ensure created_time is set correctly
+                            telephone_image
+                        ))
+
+                    return cls.get_item(order_id)
+            except Exception as e:
+                write_error_to_file('POST_GetPostOrderAPIView', e)
+                raise e
+
+    @classmethod
+    def get_all(cls):
+        with connection.cursor() as cursor:
+            query = """
+            SELECT
+                base_order.status as status,
+                base_order.user_id as user_id,
+                base_order.full_price as full_price,
+                base_order.status as first_name,
+                base_order.status as last_name,
+                base_address.street_name as street,
+                base_address.post_code as post_code
+            FROM base_order JOIN base_address
+                ON base_order.address_id = base_address.id
+            """
+            cursor.execute(query)
+            result = dictfetchall(cursor)
+            return result
+
+    @classmethod
+    def get_item(cls, order_id):
+        with connection.cursor() as cursor:
+            order_query = """ 
+               SELECT
+                   base_order.id as id,
+                   base_order.status as status,
+                   base_order.user_id as user_id,
+                   base_order.full_price as full_price,
+                   base_order.first_name as first_name,
+                   base_order.last_name as last_name,
+                   base_address.street_name as street,
+                   base_address.post_code as post_code
+               FROM base_order
+               JOIN base_address ON base_order.address_id = base_address.id
+               JOIN auth_user ON base_order.user_id = auth_user.id
+               WHERE base_order.id = %s;
+           """
+            cursor.execute(order_query, [order_id])
+            order_data = dictfetchall(cursor)
+
+            if not order_data:
+                return None
+            order_details_query = """
+                SELECT *
+                FROM base_order_product_details
+                WHERE order_id = %s;
+            """
+            cursor.execute(order_details_query, [order_id])
+            order_details_data = dictfetchall(cursor)
+            return {
+                **order_data[0],
+                "order_product_details": order_details_data
+            }
+
+    @classmethod
+    def get_list_by_user(cls, user_id):
+        with connection.cursor() as cursor:
+            query = """ 
+                    SELECT
+                        base_order.status as status,
+                        base_order.user_id as user_id,
+                        base_order.full_price as full_price,
+                        auth_user.first_name as first_name,
+                        auth_user.last_name as last_name,
+                        base_address.street_name as street,
+                        base_address.post_code as post_code
+                    FROM base_order 
+                    JOIN base_address ON base_order.address_id = base_address.id
+                    JOIN auth_user ON base_order.user_id = auth_user.id
+                    WHERE base_order.user_id = %s;
+                """
+            cursor.execute(query, [user_id])
+            data = dictfetchall(cursor)
+        if data:
+            return data
+        return None
+
+
 class order_product_details(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
     telephone = models.ForeignKey(Telephone, on_delete=models.CASCADE)
@@ -725,6 +742,101 @@ class Vendor(models.Model):
     number_telephone = models.CharField(max_length=100)
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
 
+    @classmethod
+    def get_all(cls, sort_by):
+        with connection.cursor() as cursor:
+            query = """
+                SELECT
+                    base_vendor.first_name,
+                    base_vendor.second_name,
+                    base_vendor.surname,
+                    base_vendor.number_telephone,
+                    base_vendor.created_time,
+                    COUNT(base_delivery.id)
+                FROM base_vendor JOIN base_delivery 
+                    ON base_vendor.id = base_delivery.vendor_id
+                GROUP BY 
+                    base_vendor.created_time, 
+                    base_vendor.number_telephone, 
+                    base_vendor.surname, 
+                    base_vendor.second_name, 
+                    base_vendor.first_name
+                ORDER BY {};
+            """.format(sort_by)
+            cursor.execute(query)
+            result = dictfetchall(cursor)
+        return result
+
+    @classmethod
+    def post(cls, data):
+        with connection.cursor() as cursor:
+            query_image = """
+                INSERT INTO base_vendor (
+                    first_name,
+                    second_name,
+                    surname,
+                    number_telephone,
+                    created_time
+                )
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING *;
+            """
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute(
+                query_image, [
+                    data.get('first_name'),
+                    data.get('second_name'),
+                    data.get('first_name'),
+                    data.get('second_name'),
+                    current_time])
+            new_vendor = cursor.lastrowid
+        return new_vendor
+
+    @classmethod
+    def get_item(cls, vendor_id):
+        with connection.cursor() as cursor:
+            query = """
+                    SELECT
+                        base_vendor.first_name,
+                        base_vendor.second_name,
+                        base_vendor.surname,
+                        base_vendor.number_telephone,
+                        base_vendor.created_time,
+                        COUNT(base_delivery.id)
+                    FROM base_vendor JOIN base_delivery 
+                        ON base_vendor.id = base_delivery.vendor_id
+                    GROUP BY 
+                        base_vendor.created_time, 
+                        base_vendor.number_telephone, 
+                        base_vendor.surname, 
+                        base_vendor.second_name, 
+                        base_vendor.first_name
+                    WHERE base_vendor.id = %s
+                """
+            cursor.execute(query, [vendor_id])
+            result = dictfetchall(cursor)
+        return result
+
+    @classmethod
+    def patch(cls, vendor_id, data):
+        with connection.cursor() as cursor:
+            set_clause = ", ".join(f"{field} = %s" for field in data.keys())
+            query_telephone = f"""
+                UPDATE base_vendor
+                SET {set_clause}
+                WHERE id = 1
+                RETURNING *;
+            """
+            cursor.execute(
+                query_telephone, list(data.values()) + [vendor_id]
+            )
+            fetch_result = cursor.fetchone()
+            if not fetch_result:
+                raise Exception({'error': 'Failed to insert order'})
+            vendor = fetch_result
+
+            return vendor
+
 
 class Delivery(models.Model):
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
@@ -732,10 +844,179 @@ class Delivery(models.Model):
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
     update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
 
+    @classmethod
+    def get_item(cls, delivery_id):
+        with connection.cursor() as cursor:
+            delivery_query = """ 
+                SELECT
+                    base_delivery.price as full_price,
+                    base_delivery.vendor_id,
+                    base_vendor.surname
+                FROM
+                    base_vendor, base_delivery
+                WHERE base_vendor.id = base_delivery.vendor_id AND base_delivery.id = %s;
+           """
+            cursor.execute(delivery_query, [delivery_id])
+            delivery_data = dictfetchall(cursor)
 
-class DeliveryDetails(models.Model):
+            if not delivery_data:
+                return None
+            delivery_details_query = """
+                SELECT *
+                FROM base_delivery_order
+                WHERE delivery_id = %s;
+            """
+            cursor.execute(delivery_details_query, [delivery_id])
+            delivery_details_data = dictfetchall(cursor)
+            return {
+                "delivery": delivery_data,
+                "delivery_details": delivery_details_data
+            }
+
+    @classmethod
+    def get_all(cls, sort_by):
+        with connection.cursor() as cursor:
+            query = """
+                SELECT
+                    base_delivery.price as full_price,
+                    base_delivery.vendor_id,
+                    base_vendor.surname
+                FROM
+                    base_vendor, base_delivery
+                WHERE base_vendor.id = base_delivery.vendor_id;
+                ORDER BY {};
+            """.format(sort_by)
+            cursor.execute(query)
+            result = dictfetchall(cursor)
+        return result
+
+    @classmethod
+    def get_list_by_vendor(cls, vendor_id):
+        with connection.cursor() as cursor:
+            query = """ 
+                SELECT
+                    base_delivery.price as full_price,
+                    base_delivery.vendor_id,
+                    base_vendor.surname
+                FROM
+                    base_vendor, base_delivery
+                WHERE base_vendor.id = base_delivery.vendor_id AND base_delivery.vendor_id = vendor_id;
+           """
+            cursor.execute(query, [vendor_id])
+            data = dictfetchall(cursor)
+        if data:
+            return data
+        return None
+
+    @classmethod
+    def post(cls, data):
+        with transaction.atomic():
+            try:
+                with connection.cursor() as cursor:
+                    total_price = sum(
+                        detail['price'] * detail['amount']
+                        for detail in data['delivery_details']
+                    )
+                    query_image = """
+                            INSERT INTO base_delivery (
+                                price,
+                                vendor_id,
+                                created_time,
+                                update_time
+                            )
+                            VALUES (%s, %s, %s, %s)
+                            RETURNING *;
+                        """
+                    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    cursor.execute(
+                        query_image, [
+                            total_price,
+                            data.get('vendor_id'),
+                            current_time,
+                            current_time])
+                    new_delivery = cursor.lastrowid
+                    result = {
+                        **new_delivery,
+                        'delivery_details': [],
+                    }
+                    for delivery_details_data in data['delivery_details']:
+                        Telephone.edit_amount(delivery_details_data['telephone_id'], delivery_details_data['amount'])
+                        query_image = """
+                            INSERT INTO base_delivery (
+                                price_one_phone,
+                                amount,
+                                title_telephone,
+                                telephone_id,
+                                created_time,
+                                update_time
+                            )
+                            VALUES (%s, %s, %s, %s)
+                            RETURNING *;
+                        """
+                        cursor.execute(
+                            query_image, [
+                                delivery_details_data.get('price'),
+                                delivery_details_data.get('amount'),
+                                new_delivery['id'],
+                                delivery_details_data.get('telephone_id'),
+                                current_time,
+                                current_time])
+                        result['delivery_details'].append(cursor.lastrowid)
+                return result
+            except Exception as e:
+                write_error_to_file('POST_classmethod_Delivery', e)
+                raise e
+
+    @classmethod
+    def patch(cls, delivery_id, data):
+        with connection.cursor() as cursor:
+            data['update_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            set_clause = ", ".join(f"{field} = %s" for field in data.keys())
+            query_telephone = f"""
+                UPDATE base_delivery
+                SET {set_clause}
+                WHERE id = 1
+                RETURNING *;
+            """
+            cursor.execute(
+                query_telephone, list(data.values()) + [delivery_id]
+            )
+            fetch_result = cursor.fetchone()
+            if not fetch_result:
+                raise Exception({'error': 'Failed to patch delivery'})
+            delivery = fetch_result
+
+            return delivery
+
+    @classmethod
+    def delete_item(cls):
+        # TODO:
+        pass
+
+
+class delivery_details(models.Model):
     delivery = models.ForeignKey(Delivery, on_delete=models.CASCADE)
     telephone = models.ForeignKey(Telephone, on_delete=models.CASCADE)
     price_one_phone = models.IntegerField()
-    title_telephone = models.CharField(max_length=100)
     amount = models.IntegerField()
+
+    @classmethod
+    def patch(cls, delivery_id, data):
+        with connection.cursor() as cursor:
+            data['update_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            set_clause = ", ".join(f"{field} = %s" for field in data.keys())
+            query_telephone = f"""
+                UPDATE base_delivery
+                SET {set_clause}
+                WHERE id = 1
+                RETURNING *;
+            """
+            cursor.execute(
+                query_telephone, list(data.values()) + [delivery_id]
+            )
+            fetch_result = cursor.fetchone()
+            if not fetch_result:
+                raise Exception({'error': 'Failed to patch delivery'})
+            delivery = fetch_result
+
+            return delivery

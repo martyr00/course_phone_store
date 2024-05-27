@@ -385,7 +385,7 @@ class GetPostOrderAPIView(APIView):
                 serializer = OrderSerializerAuthUser(data=request.data)
                 if serializer.is_valid():
                     serializer.validated_data['user_id'] = request.user.id
-                    result = Order.post_is_authenticated(serializer.validated_data)
+                    result = Order.post(serializer.validated_data)
                     return Response(result, status=status.HTTP_201_CREATED)
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             serializer = OrderSerializerNoAuthUser(data=request.data)
@@ -395,7 +395,7 @@ class GetPostOrderAPIView(APIView):
                 data['password'] = str(uuid.uuid4())
                 user_id = UserProfile.post(data)
                 data['user_id'] = user_id
-                result = Order.post_is_authenticated(serializer.validated_data)
+                result = Order.post(serializer.validated_data)
                 return Response(result, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
