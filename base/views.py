@@ -491,7 +491,6 @@ class VendorGetPostAPIView(APIView):
             serializer = VendorSerializer(data=request.data)
             if serializer.is_valid():
                 result = Vendor.post(serializer.validated_data)
-                print(result)
                 return Response(result, status=status.HTTP_201_CREATED)
             else:
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -500,3 +499,37 @@ class VendorGetPostAPIView(APIView):
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class VendorGetPatchDeleteItemAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+    queryset = Vendor.objects.all()
+
+    def patch(self, request, *args, **kwargs):
+        try:
+            vendor_id = kwargs.get("id", None)
+            serializer = VendorSerializer(data=request.data)
+            if serializer.is_valid():
+                result = Vendor.patch(vendor_id, serializer.validated_data)
+                return Response(result, status=status.HTTP_201_CREATED)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            error_message = str(e)  # Extract error message
+            write_error_to_file('PATCH_VendorGetPatchDeleteItemAPIView', error_message)
+            return Response({'error': error_message}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def get(self, request, *args, **kwargs):
+        try:
+            vendor_id = kwargs.get("id", None)
+            if vendor_id is None:
+                return Response({'error': 'ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+            result = Vendor.get_item(vendor_id)
+            if result:
+                return Response(result, status=status.HTTP_200_OK)
+            return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('GET_VendorGetPatchDeleteItemAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def delete(self, request, *args, **kwargs):
+        pass

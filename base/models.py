@@ -845,8 +845,9 @@ class Vendor(models.Model):
             """
             cursor.execute(query_delivery, [vendor_id])
             result_delivery = dictfetchall(cursor)
-
-        return {**result_vendor[0], "delivery": result_delivery}
+        if result_vendor:
+            return {**result_vendor[0], "delivery": result_delivery}
+        return None
 
     @classmethod
     def patch(cls, vendor_id, data):
@@ -855,18 +856,12 @@ class Vendor(models.Model):
             query_telephone = f"""
                 UPDATE base_vendor
                 SET {set_clause}
-                WHERE id = 1
-                RETURNING *;
+                WHERE id = %s
             """
             cursor.execute(
                 query_telephone, list(data.values()) + [vendor_id]
             )
-            fetch_result = cursor.fetchone()
-            if not fetch_result:
-                raise Exception({'error': 'Failed to insert order'})
-            vendor = fetch_result
-
-            return vendor
+            return Vendor.get_item(vendor_id)
 
 
 class Delivery(models.Model):

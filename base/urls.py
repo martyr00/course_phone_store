@@ -3,7 +3,8 @@ from django.urls import path
 from base.views import UsersAuthenticatedGetPatchAPIView, UsersAdminGetAPIView, TelephoneGetPostAPIView, \
     BrandGetPostAPIView, TelephoneGetItemPatchDeleteAPIView, BrandGetItemPatchDeleteAPIView, \
     UsersAdminGetItemPatchDeleteAPIView, TelephoneGetListAPIView, CityAPIView, OrderGetListByUserAPIView, \
-    OrderGetPostAPIView, OrderGetItemPatchAPIView, OrderGetSelfAPIView, VendorGetPostAPIView
+    OrderGetPostAPIView, OrderGetItemPatchAPIView, OrderGetSelfAPIView, VendorGetPostAPIView, \
+    VendorGetPatchDeleteItemAPIView
 
 urlpatterns = [
     path('/product/<int:id>', TelephoneGetItemPatchDeleteAPIView.as_view(), name='telephone'),
@@ -11,8 +12,8 @@ urlpatterns = [
 
     path('/product_by_ids', TelephoneGetListAPIView.as_view(), name='list_telephones'),
 
-    path('/brand/<int:id>', BrandGetItemPatchDeleteAPIView.as_view(), name='brand'),
     path('/brand', BrandGetPostAPIView.as_view(), name='brands'),
+    path('/brand/<int:id>', BrandGetItemPatchDeleteAPIView.as_view(), name='brand'),
 
     path('/city', CityAPIView.as_view(), name='cities'),
 
@@ -26,5 +27,6 @@ urlpatterns = [
     path('/order/<int:id>', OrderGetItemPatchAPIView.as_view(), name='order'),
     path('/order_by_user_id', OrderGetListByUserAPIView.as_view(), name='order_by_user_id'),
 
-    path('/vendor', VendorGetPostAPIView.as_view(), name='vendor'),
+    path('/vendor', VendorGetPostAPIView.as_view(), name='vendors'),
+    path('/vendor/<int:id>', VendorGetPatchDeleteItemAPIView.as_view(), name='vendor'),
 ]
