@@ -14,7 +14,7 @@ from .serializer import TelephoneSerializer, BrandSerializer, UserSerializer, \
     GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser, OrderProductsSerializer, \
     UserRegistrationSerializer
 
-from base.models import Telephone, Brand, UserProfile, Order, City
+from base.models import Telephone, Brand, UserProfile, Order, City, Vendor
 from .utils import write_error_to_file
 
 
@@ -203,7 +203,7 @@ class BrandGetItemPatchDeleteAPIView(APIView):
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class Registration(APIView):
+class UserPostRegistration(APIView):
     permission_classes = [AllowAny]
     queryset = User.objects.all()
     serializer_class = UserRegistrationSerializer
@@ -228,7 +228,7 @@ class Registration(APIView):
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class AuthenticatedUsersAPIView(APIView):
+class UsersAuthenticatedGetPatchAPIView(APIView):
     permission_classes = [AuthenticatedUser]
     queryset = UserProfile.objects.all()
     serializer_class = UserSerializer
@@ -277,7 +277,7 @@ class AuthenticatedUsersAPIView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class GetSelfOrderAPIView(APIView):
+class OrderGetSelfAPIView(APIView):
     permission_classes = [AuthenticatedUser]
     queryset = UserProfile.objects.all()
     serializer_class = OrderProductsSerializer
@@ -300,7 +300,7 @@ class GetSelfOrderAPIView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class AdminUsersGetAPIView(APIView):
+class UsersAdminGetAPIView(APIView):
     permission_classes = [AllowOnlyAdmin]
     queryset = UserProfile.objects.all()
     serializer_class = UserSerializer
@@ -314,7 +314,7 @@ class AdminUsersGetAPIView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class AdminUsersGetItemPatchDeleteAPIView(APIView):
+class UsersAdminGetItemPatchDeleteAPIView(APIView):
     permission_classes = [AllowOnlyAdmin]
     queryset = UserProfile.objects.all()
     serializer_class = UserSerializer
@@ -375,7 +375,7 @@ class CityAPIView(APIView):
             return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class GetPostOrderAPIView(APIView):
+class OrderGetPostAPIView(APIView):
     permission_classes = [AllowAny]
     queryset = Order.objects.all()
     serializers = OrderSerializerAuthUser
@@ -417,7 +417,7 @@ class GetPostOrderAPIView(APIView):
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class GetItemPatchOrderAPIView(APIView):
+class OrderGetItemPatchAPIView(APIView):
     permission_classes = [AuthenticatedUser]
     queryset = Order.objects.all()
 
@@ -444,11 +444,11 @@ class GetItemPatchOrderAPIView(APIView):
         pass
 
 
-class GetListByUserOrderAPIView(APIView):
+class OrderGetListByUserAPIView(APIView):
     permission_classes = [AllowAny]
     queryset = Order.objects.all()
 
-    def get(self, request):
+    def get(self, request, *args, **kwargs):
         try:
             user_id = request.query_params.get('user')
             if not user_id:

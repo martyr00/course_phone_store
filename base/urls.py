@@ -1,9 +1,9 @@
 from django.urls import path
 
-from base.views import AuthenticatedUsersAPIView, AdminUsersGetAPIView, TelephoneGetPostAPIView, \
+from base.views import UsersAuthenticatedGetPatchAPIView, UsersAdminGetAPIView, TelephoneGetPostAPIView, \
     BrandGetPostAPIView, TelephoneGetItemPatchDeleteAPIView, BrandGetItemPatchDeleteAPIView, \
-    AdminUsersGetItemPatchDeleteAPIView, TelephoneGetListAPIView, CityAPIView, GetListByUserOrderAPIView, \
-    GetPostOrderAPIView, GetItemPatchOrderAPIView, GetSelfOrderAPIView
+    UsersAdminGetItemPatchDeleteAPIView, TelephoneGetListAPIView, CityAPIView, OrderGetListByUserAPIView, \
+    OrderGetPostAPIView, OrderGetItemPatchAPIView, OrderGetSelfAPIView
 
 urlpatterns = [
     path('/product/<int:id>', TelephoneGetItemPatchDeleteAPIView.as_view(), name='telephone'),
@@ -16,13 +16,13 @@ urlpatterns = [
 
     path('/city', CityAPIView.as_view(), name='cities'),
 
-    path('/user/self', AuthenticatedUsersAPIView.as_view(), name='self-user'),
-    path('/order/self', GetSelfOrderAPIView.as_view(), name='self-order'),
+    path('/user/self', UsersAuthenticatedGetPatchAPIView.as_view(), name='self-user'),
+    path('/order/self', OrderGetSelfAPIView.as_view(), name='self-order'),
 
-    path('/user', AdminUsersGetAPIView.as_view(), name='users_for_admin'),
-    path('/user/<int:id>', AdminUsersGetItemPatchDeleteAPIView.as_view(), name='user_for_admin'),
+    path('/user', UsersAdminGetAPIView.as_view(), name='users_for_admin'),
+    path('/user/<int:id>', UsersAdminGetItemPatchDeleteAPIView.as_view(), name='user_for_admin'),
 
-    path('/order', GetPostOrderAPIView.as_view(), name='orders'),
-    path('/order/<int:id>', GetItemPatchOrderAPIView.as_view(), name='order'),
-    path('/order_by_user_id', GetListByUserOrderAPIView.as_view(), name='order_by_user_id'),
+    path('/order', OrderGetPostAPIView.as_view(), name='orders'),
+    path('/order/<int:id>', OrderGetItemPatchAPIView.as_view(), name='order'),
+    path('/order_by_user_id', OrderGetListByUserAPIView.as_view(), name='order_by_user_id'),
 ]

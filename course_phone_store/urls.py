@@ -24,7 +24,7 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 from rest_framework_swagger.views import get_swagger_view
-from base.views import Registration
+from base.views import UserPostRegistration
 
 schema_view = get_swagger_view(title='Pastebin API')
 
@@ -35,7 +35,7 @@ urlpatterns = [
     path('api/v1', include('base.urls')),
     path('api/v1/token', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/v1/token/refresh', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/v1/registration', Registration.as_view(), name='qwe'),
+    path('api/v1/registration', UserPostRegistration.as_view(), name='qwe'),
 ]
 
 
