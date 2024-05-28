@@ -899,9 +899,10 @@ class Delivery(models.Model):
             }
 
     @classmethod
-    def get_all(cls, sort_by):
+    def get_all(cls, sort_by, vendor_id):
         with connection.cursor() as cursor:
-            query = """
+            vendor_condition = "AND base_delivery.vendor_id = %s" if vendor_id is not None else ""
+            query = f"""
                 SELECT
                     base_delivery.id as delivery_id,
                     base_delivery.price as full_price,
@@ -910,9 +911,11 @@ class Delivery(models.Model):
                 FROM
                     base_vendor, base_delivery
                 WHERE base_vendor.id = base_delivery.vendor_id
-                ORDER BY {};
-            """.format(sort_by)
-            cursor.execute(query)
+                {vendor_condition}
+                ORDER BY {sort_by};
+            """
+            params = (vendor_id,) if vendor_id is not None else ()
+            cursor.execute(query, params)
             result = dictfetchall(cursor)
         return result
 

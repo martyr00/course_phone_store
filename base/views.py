@@ -553,7 +553,8 @@ class DeliveryGetPostAPIView(APIView):
             sort_field = sort_dict[sort_by]
             if sort_dir == 'desc':
                 sort_field += ' DESC'
-            result = Delivery.get_all(sort_field)
+            vendor_id = request.query_params.get('vendor', None)
+            result = Delivery.get_all(sort_field, vendor_id)
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             write_error_to_file('GET_DeliveryGetPostAPIView', e)
@@ -578,7 +579,3 @@ class DeliveryGetPatchDeleteItemAPIView(APIView):
             write_error_to_file('GET_DeliveryGetPatchDeleteItemAPIView', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-class DeliveryGetByVendorListAPIView(APIView):
-    permission_classes = [AllowOnlyAdmin]
-    queryset = Delivery.objects.all()
