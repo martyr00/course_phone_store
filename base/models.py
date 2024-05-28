@@ -164,6 +164,41 @@ class Address(models.Model):
     street_name = models.CharField(max_length=100)
     post_code = models.CharField(max_length=10)
 
+    @classmethod
+    def get_item(cls, address_id):
+        with connection.cursor() as cursor:
+            query_telephone = f"""
+                 SELECT
+                    base_address.id,
+                    base_address.street_name,
+                    base_address.post_code,
+                    base_address.city_id,
+                    base_city.name
+                FROM base_address join base_city
+                    ON base_address.city_id = base_city.id
+                WHERE base_address.id = %s;
+             """
+            cursor.execute(query_telephone, address_id)
+            result = cursor.fetchone()[0]
+            if result:
+                return result
+            return None
+
+    @classmethod
+    def patch_item(cls, address_id, data):
+        with connection.cursor() as cursor:
+            set_clause = ", ".join(f"{field} = %s" for field in data.keys())
+            query_telephone = f"""
+                     UPDATE base_address
+                     SET {set_clause}
+                     WHERE id = %s;
+                 """
+            cursor.execute(
+                query_telephone, list(data.values()) + [address_id]
+            )
+
+            return Address.get_item(address_id)
+
 
 class Brand(models.Model):
     title = models.CharField(max_length=50, unique=True)
@@ -547,7 +582,9 @@ class Order(models.Model):
                     base_order.id AS id,
                     base_order.status AS status,
                     base_order.user_id AS user_id,
-                    CONCAT(base_order.surname, ' ', base_order.first_name, ' ', base_order.second_name) AS full_name,
+                    base_order.surname,
+                     base_order.first_name,
+                     base_order.second_name,
                     base_address.street_name AS street,
                     base_address.post_code AS post_code,
                     base_city.name AS city,
@@ -722,7 +759,9 @@ class Order(models.Model):
                    base_order.id AS id,
                    base_order.status AS status,
                    base_order.user_id AS user_id,
-                   CONCAT(base_order.surname, ' ', base_order.first_name, ' ', base_order.second_name) AS full_name,
+                   base_order.surname,
+                   base_order.first_name,
+                   base_order.second_name,
                    base_address.street_name AS street,
                    base_address.post_code AS post_code,
                    (
@@ -759,7 +798,9 @@ class Order(models.Model):
                     SELECT
                         base_order.status AS status,
                         base_order.user_id AS user_id,
-                        CONCAT(base_order.surname, ' ', base_order.first_name, ' ', base_order.second_name) AS full_name,
+                        base_order.surname,
+                        base_order.first_name,
+                        base_order.second_name,
                         base_address.street_name AS street,
                         base_address.post_code AS post_code,
                         (
@@ -779,8 +820,46 @@ class Order(models.Model):
         return None
 
     @classmethod
-    def patch(cls, order_id, data):
-        pass
+    def patch(cls, item_id, data):
+        if not isinstance(data, dict):
+            raise ValueError("Data must be a dictionary")
+
+        item_fields = {
+            'Address': ['city_id', 'street_name', 'post_code'],
+            'Order': ['status', 'created_time', 'update_time', 'address_id', 'first_name', 'second_name', 'surname'],
+            'OrderProductDetails': ['order_id', 'telephone_id', 'price', 'amount', 'created_time']
+        }
+
+        item_type = cls.__name__
+        if item_type not in item_fields:
+            raise ValueError(f"Invalid item type: {item_type}")
+
+        # Get the current item to check its status
+        current_item = cls.get_item(item_id)
+        current_status = current_item['status']
+
+        item_data = {key: value for key, value in data.items() if key in item_fields[item_type]}
+
+        if not item_data:
+            return cls.get_item(item_id)  # Nothing to update, return the current item
+
+        try:
+            with transaction.atomic():
+                set_clause = ", ".join(f"{field} = %s" for field in item_data.keys())
+                table_name = cls._meta.db_table  # Get the correct table name
+                query = f"""
+                    UPDATE {table_name}
+                    SET {set_clause}
+                    WHERE id = %s;
+                """
+                with connection.cursor() as cursor:
+                    cursor.execute(query, list(item_data.values()) + [item_id])
+
+                return cls.get_item(item_id)
+        except ProgrammingError as e:
+            raise e
+        except Exception as e:
+            raise e
 
 
 class order_product_details(models.Model):
@@ -924,7 +1003,9 @@ class Delivery(models.Model):
                         base_delivery.id AS delivery_id,
                         base_delivery.delivery_price AS delivery_price,
                         base_delivery.vendor_id,
-                        CONCAT(base_vendor.surname, ' ', base_vendor.first_name, ' ', base_vendor.second_name) AS full_name,
+                        base_vendor.surname,
+                        base_vendor.first_name,
+                        base_vendor.second_name,
                         base_delivery.created_time,
                         base_delivery.update_time,
                         (
@@ -967,7 +1048,9 @@ class Delivery(models.Model):
                     base_delivery.id AS delivery_id,
                     base_delivery.delivery_price AS delivery_price,
                     base_delivery.vendor_id,
-                    CONCAT(base_vendor.surname, ' ', base_vendor.first_name, ' ', base_vendor.second_name) AS full_name,
+                    base_vendor.surname,
+                    base_vendor.first_name,
+                    base_vendor.second_name,
                     base_delivery.created_time,
                     base_delivery.update_time,
                     (

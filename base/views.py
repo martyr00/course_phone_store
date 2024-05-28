@@ -13,7 +13,7 @@ from .serializer import TelephoneSerializer, BrandSerializer, UserSerializer, \
     GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser, OrderProductsSerializer, \
     UserRegistrationSerializer, VendorSerializer, DeliverySerializer, DeliveryDetailsSerializer
 
-from base.models import Telephone, Brand, UserProfile, Order, City, Vendor, Delivery, delivery_details
+from base.models import Telephone, Brand, UserProfile, Order, City, Vendor, Delivery, delivery_details, Address
 from .utils import write_error_to_file
 
 
@@ -375,7 +375,7 @@ class CityAPIView(APIView):
 
 
 class OrderGetPostAPIView(APIView):
-    permission_classes = [AllowOnlyAdmin]
+    permission_classes = [AllowAny]
     queryset = Order.objects.all()
     serializers = OrderSerializerAuthUser
 
@@ -445,7 +445,22 @@ class OrderGetItemPatchAPIView(APIView):
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def patch(self, request, *args, **kwargs):
-        pass
+        try:
+            order_id = kwargs.get("id", None)
+            user_id = request.user.id
+            order = Order.get_item(order_id)
+            current_status = order['status']
+            if order['user_id'] == user_id or request.user.is_staff:
+                if current_status != 'PENDING' and not request.user.is_staff:
+                    return Response({'error': 'Only admin can update order when status is not PENDING'},
+                                    status=status.HTTP_403_FORBIDDEN)
+                result = Order.patch(order_id, request.data)
+                return Response(result, status=status.HTTP_200_OK)
+            return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            error_message = str(e)
+            write_error_to_file('PATCH_OrderGetItemPatchAPIView', error_message)
+            return Response({'error': error_message}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class OrderGetListByUserAPIView(APIView):
