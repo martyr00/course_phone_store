@@ -7,6 +7,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models, connection, transaction
 from django.utils import timezone
 from psycopg2 import ProgrammingError
+
 from base.utils import get_user_image_upload_path, get_telephone_image_upload_path, dictfetchall, write_error_to_file
 
 
@@ -468,7 +469,7 @@ class Telephone(models.Model):
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with connection.cursor() as cursor:
             query_telephone = """
-                   SELECT base_telephone.number_stock as amount
+                   SELECT base_telephone.number_stock AS amount
                    FROM base_telephone
                    WHERE id = %s
                """
@@ -668,13 +669,13 @@ class Order(models.Model):
         with connection.cursor() as cursor:
             query = """
             SELECT
-                base_order.status as status,
-                base_order.user_id as user_id,
-                base_order.full_price as full_price,
-                base_order.status as first_name,
-                base_order.status as last_name,
-                base_address.street_name as street,
-                base_address.post_code as post_code
+                base_order.status AS status,
+                base_order.user_id AS user_id,
+                base_order.full_price AS full_price,
+                base_order.status AS first_name,
+                base_order.status AS last_name,
+                base_address.street_name AS street,
+                base_address.post_code AS post_code
             FROM base_order JOIN base_address
                 ON base_order.address_id = base_address.id
             """
@@ -687,14 +688,14 @@ class Order(models.Model):
         with connection.cursor() as cursor:
             order_query = """ 
                SELECT
-                   base_order.id as id,
-                   base_order.status as status,
-                   base_order.user_id as user_id,
-                   base_order.full_price as full_price,
-                   base_order.first_name as first_name,
-                   base_order.last_name as last_name,
-                   base_address.street_name as street,
-                   base_address.post_code as post_code
+                   base_order.id AS id,
+                   base_order.status AS status,
+                   base_order.user_id AS user_id,
+                   base_order.full_price AS full_price,
+                   base_order.first_name AS first_name,
+                   base_order.last_name AS last_name,
+                   base_address.street_name AS street,
+                   base_address.post_code AS post_code
                FROM base_order
                JOIN base_address ON base_order.address_id = base_address.id
                JOIN auth_user ON base_order.user_id = auth_user.id
@@ -722,13 +723,13 @@ class Order(models.Model):
         with connection.cursor() as cursor:
             query = """ 
                     SELECT
-                        base_order.status as status,
-                        base_order.user_id as user_id,
-                        base_order.full_price as full_price,
-                        auth_user.first_name as first_name,
-                        auth_user.last_name as last_name,
-                        base_address.street_name as street,
-                        base_address.post_code as post_code
+                        base_order.status AS status,
+                        base_order.user_id AS user_id,
+                        base_order.full_price AS full_price,
+                        auth_user.first_name AS first_name,
+                        auth_user.last_name AS last_name,
+                        base_address.street_name AS street,
+                        base_address.post_code AS post_code
                     FROM base_order 
                     JOIN base_address ON base_order.address_id = base_address.id
                     JOIN auth_user ON base_order.user_id = auth_user.id
@@ -866,20 +867,77 @@ class Vendor(models.Model):
 
 class Delivery(models.Model):
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
-    price = models.ImageField()
+    delivery_price = models.IntegerField()
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
     update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
+
+    def __str__(self):
+        return 'id: ' + str(self.pk)
+
+    @classmethod
+    def get_full_data(cls, sort_field, vendor_id):
+        with connection.cursor() as cursor:
+            vendor_condition = "AND base_delivery.vendor_id = %s" if vendor_id else ""
+
+            delivery_query = f"""
+                    SELECT 
+                        base_delivery.id AS delivery_id,
+                        base_delivery.delivery_price AS delivery_price,
+                        base_delivery.vendor_id,
+                        CONCAT(base_vendor.surname, ' ', base_vendor.first_name, ' ', base_vendor.second_name) AS full_name,
+                        base_delivery.created_time,
+                        base_delivery.update_time,
+                        (
+                            SELECT SUM(base_delivery_details.amount * base_delivery_details.price_one_phone) 
+                            FROM base_delivery_details 
+                            WHERE base_delivery_details.delivery_id = base_delivery.id
+                        ) + base_delivery.delivery_price AS full_price
+                    FROM base_delivery JOIN base_vendor 
+                        ON base_vendor.id = base_delivery.vendor_id
+                    WHERE 1=1 {vendor_condition}
+                    ORDER BY {sort_field};
+                """
+            params = [vendor_id] if vendor_id else []
+            cursor.execute(delivery_query, params)
+            deliveries = dictfetchall(cursor)
+
+            # Для каждой записи из base_delivery извлекаем детали
+            for delivery in deliveries:
+                delivery_id = delivery['delivery_id']
+                delivery_details_query = """
+                        SELECT
+                            id,
+                            price_one_phone,
+                            amount,
+                            telephone_id
+                        FROM base_delivery_details
+                        WHERE delivery_id = %s;
+                    """
+                cursor.execute(delivery_details_query, [delivery_id])
+                new_delivery_details_data = dictfetchall(cursor)
+
+                delivery["delivery_details"] = new_delivery_details_data
+            return deliveries
 
     @classmethod
     def get_item(cls, delivery_id):
         with connection.cursor() as cursor:
             delivery_query = """ 
-                SELECT
-                    base_delivery.price as full_price,
+                SELECT 
+                    base_delivery.id AS delivery_id,
+                    base_delivery.delivery_price AS delivery_price,
                     base_delivery.vendor_id,
-                    base_vendor.surname
-                FROM base_vendor, base_delivery
-                WHERE base_vendor.id = base_delivery.vendor_id AND base_delivery.id = %s;
+                    CONCAT(base_vendor.surname, ' ', base_vendor.first_name, ' ', base_vendor.second_name) AS full_name,
+                    base_delivery.created_time,
+                    base_delivery.update_time,
+                    (
+                        SELECT SUM(base_delivery_details.amount * base_delivery_details.price_one_phone) 
+                        FROM base_delivery_details 
+                        WHERE base_delivery_details.delivery_id = base_delivery.id
+                    ) + base_delivery.delivery_price AS full_price
+                FROM base_delivery JOIN base_vendor 
+                    ON base_vendor.id = base_delivery.vendor_id
+                WHERE base_delivery.id = %s;
            """
             cursor.execute(delivery_query, [delivery_id])
             delivery_data = dictfetchall(cursor)
@@ -905,7 +963,7 @@ class Delivery(models.Model):
             query = f"""
                 SELECT
                     base_delivery.id as delivery_id,
-                    base_delivery.price as full_price,
+                    base_delivery.delivery_price as delivery_price,
                     base_delivery.vendor_id,
                     base_vendor.surname
                 FROM
@@ -920,78 +978,48 @@ class Delivery(models.Model):
         return result
 
     @classmethod
-    def get_list_by_vendor(cls, vendor_id):
-        with connection.cursor() as cursor:
-            query = """ 
-                SELECT
-                    base_delivery.price as full_price,
-                    base_delivery.vendor_id,
-                    base_vendor.surname
-                FROM
-                    base_vendor, base_delivery
-                WHERE base_vendor.id = base_delivery.vendor_id AND base_delivery.vendor_id = vendor_id;
-           """
-            cursor.execute(query, [vendor_id])
-            data = dictfetchall(cursor)
-        if data:
-            return data
-        return None
-
-    @classmethod
     def post(cls, data):
         with transaction.atomic():
             try:
                 with connection.cursor() as cursor:
-                    total_price = sum(
-                        detail['price'] * detail['amount']
-                        for detail in data['delivery_details']
-                    )
-                    query_image = """
-                            INSERT INTO base_delivery (
-                                price,
-                                vendor_id,
-                                created_time,
-                                update_time
-                            )
-                            VALUES (%s, %s, %s, %s)
-                            RETURNING *;
-                        """
+                    query_delivery = """
+                        INSERT INTO base_delivery (
+                            delivery_price,
+                            vendor_id,
+                            created_time,
+                            update_time
+                        )
+                        VALUES (%s, %s, %s, %s)
+                        RETURNING id;
+                    """
                     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     cursor.execute(
-                        query_image, [
-                            total_price,
+                        query_delivery, [
+                            data.get('delivery_price'),
                             data.get('vendor_id'),
                             current_time,
                             current_time])
-                    new_delivery = cursor.lastrowid
-                    result = {
-                        **new_delivery,
-                        'delivery_details': [],
-                    }
+                    delivery_id = cursor.fetchone()[0]
+
                     for delivery_details_data in data['delivery_details']:
                         Telephone.edit_amount(delivery_details_data['telephone_id'], delivery_details_data['amount'])
-                        query_image = """
-                            INSERT INTO base_delivery (
+                        query_details = """
+                            INSERT INTO base_delivery_details (
                                 price_one_phone,
                                 amount,
-                                title_telephone,
-                                telephone_id,
-                                created_time,
-                                update_time
+                                delivery_id,
+                                telephone_id
                             )
-                            VALUES (%s, %s, %s, %s)
-                            RETURNING *;
+                            VALUES (%s, %s, %s, %s);
                         """
                         cursor.execute(
-                            query_image, [
+                            query_details, [
                                 delivery_details_data.get('price'),
                                 delivery_details_data.get('amount'),
-                                new_delivery['id'],
-                                delivery_details_data.get('telephone_id'),
-                                current_time,
-                                current_time])
-                        result['delivery_details'].append(cursor.lastrowid)
-                return result
+                                delivery_id,
+                                delivery_details_data.get('telephone_id')])
+                        result = Delivery.get_item(delivery_id)
+                    return result
             except Exception as e:
                 write_error_to_file('POST_classmethod_Delivery', e)
                 raise e
@@ -1044,23 +1072,38 @@ class delivery_details(models.Model):
     price_one_phone = models.IntegerField()
     amount = models.IntegerField()
 
+    def __str__(self):
+        return 'id: ' + str(self.pk)
+
     @classmethod
-    def patch(cls, delivery_id, data):
+    def patch(cls, delivery_details_id, data):
         with connection.cursor() as cursor:
-            data['update_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            instance = delivery_details.get_item(delivery_details_id)
+            if 'price' in data:
+                data['price_one_phone'] = data.pop('price')
+            if data.get('amount'):
+                Telephone.edit_amount(instance['telephone_id'], data['amount'] - instance['amount'])
             set_clause = ", ".join(f"{field} = %s" for field in data.keys())
             query_telephone = f"""
-                UPDATE base_delivery
+                UPDATE base_delivery_details
                 SET {set_clause}
-                WHERE id = 1
-                RETURNING *;
+                WHERE id = %s;
             """
             cursor.execute(
-                query_telephone, list(data.values()) + [delivery_id]
+                query_telephone, list(data.values()) + [delivery_details_id]
             )
-            fetch_result = cursor.fetchone()
-            if not fetch_result:
-                raise Exception({'error': 'Failed to patch delivery'})
-            delivery = fetch_result
+            return delivery_details.get_item(delivery_details_id)
 
-            return delivery
+    @classmethod
+    def get_item(cls, delivery_details_id):
+        with connection.cursor() as cursor:
+            query = """
+                        SELECT id, amount, price_one_phone, delivery_id, telephone_id
+                        FROM base_delivery_details
+                        WHERE id = %s
+                    """
+            cursor.execute(query, [delivery_details_id])
+            result = dictfetchall(cursor)
+            if result:
+                return result[0]
+            return None

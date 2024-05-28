@@ -1,7 +1,6 @@
 import uuid
 
 from django.contrib.auth.models import User
-from django.core.exceptions import ValidationError
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
@@ -12,9 +11,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .permission import IsAdminOrReadOnly, AuthenticatedUser, AllowOnlyAdmin
 from .serializer import TelephoneSerializer, BrandSerializer, UserSerializer, \
     GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser, OrderProductsSerializer, \
-    UserRegistrationSerializer, VendorSerializer
+    UserRegistrationSerializer, VendorSerializer, DeliverySerializer, DeliveryDetailsSerializer
 
-from base.models import Telephone, Brand, UserProfile, Order, City, Vendor, Delivery
+from base.models import Telephone, Brand, UserProfile, Order, City, Vendor, Delivery, delivery_details
 from .utils import write_error_to_file
 
 
@@ -541,11 +540,13 @@ class DeliveryGetPostAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            sort_by = request.query_params.get('sort_by', 'surname')
+            sort_by = request.query_params.get('sort_by', 'full_name')
             sort_dir = request.query_params.get('sort_dir', 'asc')
             sort_dict = {
-                'surname': 'base_vendor.surname',
-                'price': 'base_delivery.price',
+                'full_name': 'full_name',
+                'delivery_price': 'base_delivery.delivery_price',
+                'full_price': 'full_price',
+                'time': 'created_time',
             }
             if sort_by not in sort_dict:
                 sort_by = 'surname'
@@ -553,12 +554,28 @@ class DeliveryGetPostAPIView(APIView):
             sort_field = sort_dict[sort_by]
             if sort_dir == 'desc':
                 sort_field += ' DESC'
+            query_params_full_date = request.query_params.get('fulldata', None)
             vendor_id = request.query_params.get('vendor', None)
+            if query_params_full_date:
+                result = Delivery.get_full_data(sort_field, vendor_id)
+                return Response(result, status=status.HTTP_200_OK)
             result = Delivery.get_all(sort_field, vendor_id)
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             write_error_to_file('GET_DeliveryGetPostAPIView', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def post(self, request, *args, **kwargs):
+        try:
+            serializer = DeliverySerializer(data=request.data)
+            if serializer.is_valid():
+                result = Delivery.post(serializer.validated_data)
+                return Response(result, status=status.HTTP_201_CREATED)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('POST_DeliveryGetPostAPIView', e)
+            return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class DeliveryGetPatchDeleteItemAPIView(APIView):
@@ -578,4 +595,18 @@ class DeliveryGetPatchDeleteItemAPIView(APIView):
         except Exception as e:
             write_error_to_file('GET_DeliveryGetPatchDeleteItemAPIView', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def patch(self, request, *args, **kwargs):
+        try:
+            delivery_id = kwargs.get("id", None)
+            serializer = DeliveryDetailsSerializer(data=request.data)
+            if serializer.is_valid():
+                result = delivery_details.patch(delivery_id, serializer.validated_data)
+                return Response(result, status=status.HTTP_201_CREATED)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            error_message = str(e)  # Extract error message
+            write_error_to_file('PATCH_VendorGetPatchDeleteItemAPIView', error_message)
+            return Response({'error': error_message}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

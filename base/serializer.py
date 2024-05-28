@@ -1,4 +1,5 @@
-from .models import Telephone, Brand, UserProfile, TelephoneImage, Order, order_product_details, Address, Vendor
+from .models import Telephone, Brand, UserProfile, TelephoneImage, Order, order_product_details, Address, Vendor, \
+    delivery_details, Delivery
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import serializers
@@ -169,3 +170,23 @@ class VendorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vendor
         fields = ['first_name', 'second_name', 'surname', 'number_telephone']
+
+
+class DeliveryDetailsSerializer(serializers.ModelSerializer):
+    price = serializers.IntegerField(required=False)
+    amount = serializers.IntegerField(required=False)
+    telephone_id = serializers.IntegerField(required=False)
+
+    class Meta:
+        model = delivery_details
+        fields = ['price', 'amount', 'telephone_id']
+
+
+class DeliverySerializer(serializers.ModelSerializer):
+    vendor_id = serializers.IntegerField(required=True)
+    delivery_price = serializers.IntegerField(required=True)
+    delivery_details = DeliveryDetailsSerializer(many=True)
+
+    class Meta:
+        model = Delivery
+        fields = ['vendor_id', 'delivery_details', 'delivery_price']
