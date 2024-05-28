@@ -14,7 +14,7 @@ from .serializer import TelephoneSerializer, BrandSerializer, UserSerializer, \
     GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser, OrderProductsSerializer, \
     UserRegistrationSerializer, VendorSerializer
 
-from base.models import Telephone, Brand, UserProfile, Order, City, Vendor
+from base.models import Telephone, Brand, UserProfile, Order, City, Vendor, Delivery
 from .utils import write_error_to_file
 
 
@@ -533,3 +533,18 @@ class VendorGetPatchDeleteItemAPIView(APIView):
 
     def delete(self, request, *args, **kwargs):
         pass
+
+
+class DeliveryGetPostAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+    queryset = Delivery.objects.all()
+
+
+class DeliveryGetPatchDeleteItemAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+    queryset = Delivery.objects.all()
+
+
+class DeliveryGetByVendorListAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+    queryset = Delivery.objects.all()
