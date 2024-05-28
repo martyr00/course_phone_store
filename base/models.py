@@ -878,8 +878,7 @@ class Delivery(models.Model):
                     base_delivery.price as full_price,
                     base_delivery.vendor_id,
                     base_vendor.surname
-                FROM
-                    base_vendor, base_delivery
+                FROM base_vendor, base_delivery
                 WHERE base_vendor.id = base_delivery.vendor_id AND base_delivery.id = %s;
            """
             cursor.execute(delivery_query, [delivery_id])
@@ -889,13 +888,13 @@ class Delivery(models.Model):
                 return None
             delivery_details_query = """
                 SELECT *
-                FROM base_delivery_order
+                FROM base_delivery_details
                 WHERE delivery_id = %s;
             """
             cursor.execute(delivery_details_query, [delivery_id])
             delivery_details_data = dictfetchall(cursor)
             return {
-                "delivery": delivery_data,
+                **delivery_data[0],
                 "delivery_details": delivery_details_data
             }
 
