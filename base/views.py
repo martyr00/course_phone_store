@@ -539,10 +539,44 @@ class DeliveryGetPostAPIView(APIView):
     permission_classes = [AllowOnlyAdmin]
     queryset = Delivery.objects.all()
 
+    def get(self, request, *args, **kwargs):
+        try:
+            sort_by = request.query_params.get('sort_by', 'surname')
+            sort_dir = request.query_params.get('sort_dir', 'asc')
+            sort_dict = {
+                'surname': 'base_vendor.surname',
+                'price': 'base_delivery.price',
+            }
+            if sort_by not in sort_dict:
+                sort_by = 'surname'
+
+            sort_field = sort_dict[sort_by]
+            if sort_dir == 'desc':
+                sort_field += ' DESC'
+            result = Delivery.get_all(sort_field)
+            return Response(result, status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_DeliveryGetPostAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class DeliveryGetPatchDeleteItemAPIView(APIView):
     permission_classes = [AllowOnlyAdmin]
     queryset = Delivery.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        try:
+            delivery_id = kwargs.get("id", None)
+            if delivery_id is None:
+                return Response({'error': 'ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+            result = Delivery.get_item(delivery_id)
+            if result:
+                return Response(result, status=status.HTTP_200_OK)
+            return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('GET_DeliveryGetPatchDeleteItemAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class DeliveryGetByVendorListAPIView(APIView):

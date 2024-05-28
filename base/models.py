@@ -904,12 +904,13 @@ class Delivery(models.Model):
         with connection.cursor() as cursor:
             query = """
                 SELECT
+                    base_delivery.id as delivery_id,
                     base_delivery.price as full_price,
                     base_delivery.vendor_id,
                     base_vendor.surname
                 FROM
                     base_vendor, base_delivery
-                WHERE base_vendor.id = base_delivery.vendor_id;
+                WHERE base_vendor.id = base_delivery.vendor_id
                 ORDER BY {};
             """.format(sort_by)
             cursor.execute(query)
