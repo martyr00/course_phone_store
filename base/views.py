@@ -285,7 +285,7 @@ class OrderGetSelfAPIView(APIView):
         try:
             user_id = request.user.id
             if user_id:
-                result_get_item = Order.get_item_by_user(user_id)
+                result_get_item = Order.get_list_by_user(user_id)
                 return Response(result_get_item, status=status.HTTP_200_OK)
             else:
                 return Response(
@@ -375,7 +375,7 @@ class CityAPIView(APIView):
 
 
 class OrderGetPostAPIView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [AllowOnlyAdmin]
     queryset = Order.objects.all()
     serializers = OrderSerializerAuthUser
 
@@ -409,8 +409,13 @@ class OrderGetPostAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            result_get_all = Order.get_all()
-            return Response(result_get_all, status=status.HTTP_200_OK)
+            user_id = request.query_params.get('user_id', None)
+            full_data = request.query_params.get('fulldata', None)
+            if full_data:
+                result = Order.get_full_data(user_id)
+                return Response(result, status=status.HTTP_200_OK)
+            result = Order.get_all(user_id)
+            return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             write_error_to_file('GET_BrandAPIView', e)
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -449,7 +454,7 @@ class OrderGetListByUserAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            user_id = request.query_params.get('user')
+            user_id = request.query_params.get('user_id')
             if not user_id:
                 return Response({'error': 'No user_id in query_params'}, status=status.HTTP_400_BAD_REQUEST)
             result_get_item = Order.get_list_by_user(user_id)

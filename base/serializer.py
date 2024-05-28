@@ -118,13 +118,13 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class AddressSerializer(serializers.ModelSerializer):
-    street = serializers.CharField(max_length=50)
-    city = serializers.IntegerField()
+    street_name = serializers.CharField(max_length=50)
+    city_id = serializers.IntegerField()
     post_code = serializers.CharField(max_length=10)
 
     class Meta:
         model = Address
-        fields = ['street', 'city', 'post_code']
+        fields = ['street_name', 'city_id', 'post_code']
 
 
 class OrderProductsSerializer(serializers.ModelSerializer):
@@ -138,19 +138,21 @@ class OrderProductsSerializer(serializers.ModelSerializer):
 
 class OrderSerializerAuthUser(serializers.ModelSerializer):
     first_name = serializers.CharField(max_length=50)
-    last_name = serializers.CharField(max_length=50)
+    second_name = serializers.CharField(max_length=50)
+    surname = serializers.CharField(max_length=50)
     address = AddressSerializer()
-    products = OrderProductsSerializer(many=True)
+    products = OrderProductsSerializer(many=True)  # Include products here
 
     class Meta:
         model = Order
-        fields = ['address', 'products', 'first_name', 'last_name']
+        fields = ['address', 'products', 'first_name', 'second_name', 'surname']
 
 
 class OrderSerializerNoAuthUser(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
     first_name = serializers.CharField(max_length=50)
-    last_name = serializers.CharField(max_length=50)
+    second_name = serializers.CharField(max_length=50)
+    surname = serializers.CharField(max_length=50)
     email = serializers.EmailField()
     number_telephone = serializers.CharField()
     address = AddressSerializer()
@@ -158,7 +160,7 @@ class OrderSerializerNoAuthUser(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'first_name', 'last_name', 'email', 'address', 'number_telephone', 'products']
+        fields = ['id', 'first_name', 'second_name', 'surname', 'email', 'address', 'number_telephone', 'products']
 
 
 class VendorSerializer(serializers.ModelSerializer):

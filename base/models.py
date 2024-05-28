@@ -522,7 +522,6 @@ class TelephoneImage(models.Model):
 
 class Order(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    full_price = models.IntegerField()
     STATUS_CHOICES = [
         ('PENDING', 'PENDING'),
         ('SENDED', 'SENDED'),
@@ -534,28 +533,62 @@ class Order(models.Model):
     update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
     address = models.ForeignKey(Address, on_delete=models.CASCADE)
     first_name = models.CharField(max_length=50)
-    last_name = models.CharField(max_length=50)
+    second_name = models.CharField(null=True, blank=True)
+    surname = models.CharField(max_length=50)
 
     @classmethod
-    def get_item_by_user(cls, user_id):
+    def get_full_data(cls, user_id=None):
         with connection.cursor() as cursor:
-            query = """
+            query_user = ""
+            if user_id:
+                query_user = f'WHERE base_order.user_id = {user_id}'  # Modify query_user if user_id is provided
+            query_order = f"""
+                SELECT
+                    base_order.id AS id,
+                    base_order.status AS status,
+                    base_order.user_id AS user_id,
+                    CONCAT(base_order.surname, ' ', base_order.first_name, ' ', base_order.second_name) AS full_name,
+                    base_address.street_name AS street,
+                    base_address.post_code AS post_code,
+                    base_city.name AS city,
+                    (
+                        SELECT SUM(base_order_product_details.amount * base_order_product_details.price)
+                        FROM base_order_product_details
+                        WHERE base_order_product_details.order_id = base_order.id
+                    ) AS full_price
+                FROM base_order 
+                JOIN base_address ON base_order.address_id = base_address.id
+                JOIN base_city ON base_address.city_id = base_city.id
+                {query_user};
+            """
+            cursor.execute(query_order)
+            result_orders = dictfetchall(cursor)
+
+            for order in result_orders:
+                order_id = order['id']
+                query_order_product_details = f"""
                     SELECT
-                        base_order.id,
-                        base_order.status,
-                        base_order.created_time,
-                        base_order.update_time,
-                        base_order.address_id,
+                        base_order_product_details.id,
                         base_order_product_details.price,
                         base_order_product_details.amount,
-                        base_order_product_details.telephone_id
-                    FROM base_order
-                    LEFT JOIN base_order_product_details ON base_order.id = base_order_product_details.order_id
-                    WHERE base_order.user_id = %s
+                        base_order_product_details.order_id,
+                        base_order_product_details.created_time,
+                        (
+                        SELECT image
+                        FROM base_telephoneimage
+                        WHERE telephone_id =  base_order_product_details.telephone_id
+                        ORDER BY base_telephoneimage.created_time
+                        LIMIT 1
+                        )
+                    FROM base_order_product_details
+                    WHERE order_id = {order_id}
                 """
-            cursor.execute(query, [user_id])
-            data = dictfetchall(cursor)
-        return data
+                cursor.execute(query_order_product_details)
+                result_order_product_details = dictfetchall(cursor)
+
+                order['products'] = result_order_product_details
+
+            return result_orders
 
     @classmethod
     def post(cls, validated_data):
@@ -568,16 +601,16 @@ class Order(models.Model):
                             RETURNING id;
                         """
                     cursor.execute(address_query, (
-                        validated_data['address']['street'],
-                        validated_data['address']['city'],
+                        validated_data['address']['street_name'],
+                        validated_data['address']['city_id'],
                         validated_data['address']['post_code']
                     ))
                     address_result = cursor.fetchone()
                     if not address_result:
                         raise Exception("Failed to insert address")
                     address_id = address_result[0]
-                    order_full_price = 0
 
+                    product_prices = {}
                     for product_data in validated_data['products']:
                         try:
                             Telephone.edit_amount(product_data['telephone_id'], -product_data['amount'])
@@ -588,16 +621,13 @@ class Order(models.Model):
                             }
 
                         product_price_query = """
-                                SELECT price FROM base_telephone WHERE id = %s;
-                            """
+                            SELECT price FROM base_telephone WHERE id = %s;
+                        """
                         cursor.execute(product_price_query, (product_data['telephone_id'],))
                         product_result = cursor.fetchone()
                         if not product_result:
                             raise Exception(f"No product found with ID {product_data['telephone_id']}")
-                        product_price = product_result[0]
-
-                        total_price = product_price * product_data['amount']
-                        order_full_price += total_price
+                        product_prices[product_data['telephone_id']] = product_result[0]
 
                     # Insert the order
                     order_query = """
@@ -607,10 +637,10 @@ class Order(models.Model):
                                 status, 
                                 created_time, 
                                 update_time, 
-                                full_price, 
                                 first_name, 
-                                last_name
-                                )
+                                second_name,
+                                surname
+                            )
                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                             RETURNING id;
                         """
@@ -620,9 +650,9 @@ class Order(models.Model):
                         'PREPARATION',
                         timezone.now(),
                         timezone.now(),
-                        order_full_price,
                         validated_data['first_name'],
-                        validated_data['last_name']
+                        validated_data['second_name'],
+                        validated_data['surname']
                     ))
                     fetch_result = cursor.fetchone()
                     if not fetch_result:
@@ -630,54 +660,55 @@ class Order(models.Model):
                     order_id = fetch_result[0]
 
                     for product_data in validated_data['products']:
-                        # Fetch the telephone image
-                        telephone_image_query = """
-                                SELECT image FROM base_telephoneimage WHERE telephone_id = %s LIMIT 1;
-                            """
-                        cursor.execute(telephone_image_query, (product_data['telephone_id'],))
-                        image_result = cursor.fetchone()
-                        telephone_image = image_result[0] if image_result else None
-
-                        # Insert the product details
                         product_query = """
                                 INSERT INTO base_order_product_details (
                                     order_id, 
                                     telephone_id, 
                                     price, 
                                     amount, 
-                                    created_time, 
-                                    telephone_image
+                                    created_time
                                 )
-                                VALUES (%s, %s, %s, %s, %s, %s);
+                                VALUES (%s, %s, %s, %s, %s);
                             """
                         cursor.execute(product_query, (
                             order_id,
                             product_data['telephone_id'],
-                            product_price,
+                            product_prices[product_data['telephone_id']],
                             product_data['amount'],
-                            timezone.now(),  # Ensure created_time is set correctly
-                            telephone_image
+                            timezone.now()
                         ))
 
-                    return cls.objects.get(id=order_id)
+                    return Order.get_item(order_id)
             except Exception as e:
                 write_error_to_file('POST_GetPostOrderAPIView', e)
                 raise e
 
     @classmethod
-    def get_all(cls):
+    def get_all(cls, user_id=None):
         with connection.cursor() as cursor:
-            query = """
+            query_user = ""
+            if user_id:
+                query_user = f'WHERE base_order.user_id = {user_id}'
+            query = f"""
             SELECT
+                base_order.id AS id,
                 base_order.status AS status,
                 base_order.user_id AS user_id,
-                base_order.full_price AS full_price,
                 base_order.status AS first_name,
                 base_order.status AS last_name,
                 base_address.street_name AS street,
-                base_address.post_code AS post_code
+                base_address.post_code AS post_code,
+                base_city.name AS city,
+                (
+                    SELECT SUM(base_order_product_details.amount * base_order_product_details.price)
+                    FROM base_order_product_details
+                    WHERE base_order_product_details.order_id = base_order.id
+                ) AS full_price
             FROM base_order JOIN base_address
                 ON base_order.address_id = base_address.id
+            JOIN base_city
+                ON base_address.city_id = base_city.id
+                {query_user};
             """
             cursor.execute(query)
             result = dictfetchall(cursor)
@@ -691,11 +722,14 @@ class Order(models.Model):
                    base_order.id AS id,
                    base_order.status AS status,
                    base_order.user_id AS user_id,
-                   base_order.full_price AS full_price,
-                   base_order.first_name AS first_name,
-                   base_order.last_name AS last_name,
+                   CONCAT(base_order.surname, ' ', base_order.first_name, ' ', base_order.second_name) AS full_name,
                    base_address.street_name AS street,
-                   base_address.post_code AS post_code
+                   base_address.post_code AS post_code,
+                   (
+                    SELECT SUM(base_order_product_details.amount * base_order_product_details.price)
+                    FROM base_order_product_details
+                    WHERE base_order_product_details.order_id = base_order.id
+                    ) AS full_price
                FROM base_order
                JOIN base_address ON base_order.address_id = base_address.id
                JOIN auth_user ON base_order.user_id = auth_user.id
@@ -725,11 +759,14 @@ class Order(models.Model):
                     SELECT
                         base_order.status AS status,
                         base_order.user_id AS user_id,
-                        base_order.full_price AS full_price,
-                        auth_user.first_name AS first_name,
-                        auth_user.last_name AS last_name,
+                        CONCAT(base_order.surname, ' ', base_order.first_name, ' ', base_order.second_name) AS full_name,
                         base_address.street_name AS street,
-                        base_address.post_code AS post_code
+                        base_address.post_code AS post_code,
+                        (
+                        SELECT SUM(base_order_product_details.amount * base_order_product_details.price)
+                        FROM base_order_product_details
+                        WHERE base_order_product_details.order_id = base_order.id
+                        ) AS full_price
                     FROM base_order 
                     JOIN base_address ON base_order.address_id = base_address.id
                     JOIN auth_user ON base_order.user_id = auth_user.id
@@ -741,6 +778,10 @@ class Order(models.Model):
             return data
         return None
 
+    @classmethod
+    def patch(cls, order_id, data):
+        pass
+
 
 class order_product_details(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
@@ -748,7 +789,6 @@ class order_product_details(models.Model):
     price = models.IntegerField()
     amount = models.IntegerField()
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
-    telephone_image = models.ImageField(null=True, blank=True)
 
 
 class Comment(models.Model):
