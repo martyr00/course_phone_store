@@ -29,6 +29,15 @@ class AuthenticatedUser(permissions.BasePermission):
         return False
 
 
+class AuthenticatedOrSafeMethodsUser(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if request.method in 'GET':
+            return True
+        if request.user.is_authenticated:
+            return True
+        return False
+
+
 class AllowOnlyAdmin(permissions.BasePermission):
     def has_permission(self, request, view):
          return bool(request.user.is_staff)

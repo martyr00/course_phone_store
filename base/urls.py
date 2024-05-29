@@ -4,7 +4,7 @@ from base.views import UsersAuthenticatedGetPatchAPIView, UsersAdminGetAPIView, 
     BrandGetPostAPIView, TelephoneGetItemPatchDeleteAPIView, BrandGetItemPatchDeleteAPIView, \
     UsersAdminGetItemPatchDeleteAPIView, TelephoneGetListAPIView, CityAPIView, OrderGetListByUserAPIView, \
     OrderGetPostAPIView, OrderGetItemPatchAPIView, OrderGetSelfAPIView, VendorGetPostAPIView, \
-    VendorGetPatchDeleteItemAPIView, DeliveryGetPostAPIView, DeliveryGetPatchDeleteItemAPIView
+    VendorGetPatchDeleteItemAPIView, DeliveryGetPostAPIView, DeliveryGetPatchDeleteItemAPIView, CommentGetPostAPIView
 
 urlpatterns = [
     path('/product/<int:id>', TelephoneGetItemPatchDeleteAPIView.as_view(), name='telephone'),
@@ -32,4 +32,6 @@ urlpatterns = [
 
     path('/delivery', DeliveryGetPostAPIView.as_view(), name='deliveries'),
     path('/delivery/<int:id>', DeliveryGetPatchDeleteItemAPIView.as_view(), name='delivery'),
+
+    path('/comment', CommentGetPostAPIView.as_view(), name='Comment'),
 ]

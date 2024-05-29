@@ -8,12 +8,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .permission import IsAdminOrReadOnly, AuthenticatedUser, AllowOnlyAdmin
+from .permission import IsAdminOrReadOnly, AuthenticatedUser, AllowOnlyAdmin, AuthenticatedOrSafeMethodsUser
 from .serializer import TelephoneSerializer, BrandSerializer, UserSerializer, \
     GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser, OrderProductsSerializer, \
-    UserRegistrationSerializer, VendorSerializer, DeliverySerializer, DeliveryDetailsSerializer
+    UserRegistrationSerializer, VendorSerializer, DeliverySerializer, DeliveryDetailsSerializer, CommentSerializer
 
-from base.models import Telephone, Brand, UserProfile, Order, City, Vendor, Delivery, delivery_details, Address
+from base.models import Telephone, Brand, UserProfile, Order, City, Vendor, Delivery, delivery_details, Address, Comment
 from .utils import write_error_to_file
 
 
@@ -628,4 +628,36 @@ class DeliveryGetPatchDeleteItemAPIView(APIView):
         except Exception as e:
             error_message = str(e)  # Extract error message
             write_error_to_file('PATCH_VendorGetPatchDeleteItemAPIView', error_message)
+            return Response({'error': error_message}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CommentGetPostAPIView(APIView):
+    permission_classes = [AuthenticatedOrSafeMethodsUser]
+    queryset = Comment.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        try:
+            telephone_id = request.query_params.get('telephone_id')
+            if telephone_id:
+                result = Comment.get_by_telephone(telephone_id)
+                return Response(result, status=status.HTTP_200_OK)
+            return Response({'error': 'Bad request'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('GET_CommentGetPostAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def post(self, request, *args, **kwargs):
+        try:
+            serializer = CommentSerializer(data=request.data)
+            if serializer.is_valid():
+                data = serializer.validated_data
+                data['user_id'] = request.user.id
+                print(data)
+                Comment.post_item(data)
+                return Response({"result": 'Success'}, status=status.HTTP_201_CREATED)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('POST_CommentGetPostAPIView', e)
+            error_message = str(e)
             return Response({'error': error_message}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

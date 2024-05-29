@@ -899,30 +899,34 @@ class Comment(models.Model):
 
     @classmethod
     def post_item(cls, data):
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        data['created_time'] = current_time
-        data['update_time'] = current_time
+        try:
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            data['created_time'] = current_time
+            data['update_time'] = current_time
 
-        with connection.cursor() as cursor:
-            query_telephone = """
-                   INSERT INTO base_commnent (
-                       text,
-                       user_id,
-                       telephone_id,
-                       update_time,
-                       created_time
-                   )
-                   VALUES (%s, %s, %s, %s, %s)
-               """
-            cursor.execute(
-                query_telephone, [
-                    data.get('text'),
-                    data.get('user_id'),
-                    data.get('telephone_id'),
-                    data['created_time'],
-                    data['update_time'],
-                ])
-        return Comment.get_by_telephone(data['telephone_id'])
+            with connection.cursor() as cursor:
+                query_telephone = """
+                       INSERT INTO base_comment (
+                           text,
+                           user_id,
+                           telephone_id,
+                           update_time,
+                           created_time
+                       )
+                       VALUES (%s, %s, %s, %s, %s)
+                   """
+                cursor.execute(
+                    query_telephone, [
+                        data.get('text'),
+                        data.get('user_id'),
+                        data.get('telephone_id'),
+                        data['created_time'],
+                        data['update_time'],
+                    ])
+            return True
+        except Exception as e:
+            write_error_to_file('POST_Comment_post_item', e)
+            raise e
 
     @classmethod
     def patch_item(cls, comment_id, data):
