@@ -1296,3 +1296,66 @@ class delivery_details(models.Model):
             if result:
                 return result[0]
             return None
+
+
+class Views(models.Model):
+    telephone = models.ForeignKey(Telephone, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_time = models.DateTimeField()
+
+    @classmethod
+    def get_full_data_stat(cls, telephone_id=None, user_id=None, start_date=None, end_date=None):
+        queue_conditions = []
+
+        if telephone_id:
+            queue_conditions.append(f"base_views.telephone_id = {telephone_id}")
+        if user_id:
+            queue_conditions.append(f"base_views.user_id = {user_id}")
+        if start_date:
+            queue_conditions.append(f"base_views.created_time >= '{start_date}'")
+        if end_date:
+            queue_conditions.append(f"base_views.created_time <= '{end_date}'")
+
+        queue = ""
+        if queue_conditions:
+            queue = "WHERE " + " AND ".join(queue_conditions)
+
+        query = f"""
+                    SELECT
+                        base_views.telephone_id,
+                        base_views.user_id,
+                        base_views.created_time,
+                        auth_user.username,
+                        base_telephone.title
+                    FROM base_views
+                    JOIN auth_user ON auth_user.id = base_views.user_id
+                    JOIN base_telephone ON base_views.telephone_id = base_telephone.id
+                    {queue}
+                """
+
+        with connection.cursor() as cursor:
+            cursor.execute(query)
+            result = dictfetchall(cursor)
+
+        return result
+
+    @classmethod
+    def post_item(cls, data):
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        data['created_time'] = current_time
+
+        with connection.cursor() as cursor:
+            query_telephone = """
+                       INSERT INTO base_views (
+                           telephone_id,
+                           user_id,
+                           created_time
+                       )
+                       VALUES (%s, %s, %s)
+                   """
+            cursor.execute(
+                query_telephone, [
+                    data.get('telephone_id'),
+                    data.get('user_id'),
+                    data['created_time']
+                ])
