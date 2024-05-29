@@ -11,7 +11,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .permission import IsAdminOrReadOnly, AuthenticatedUser, AllowOnlyAdmin, AuthenticatedOrSafeMethodsUser
 from .serializer import TelephoneSerializer, BrandSerializer, UserSerializer, \
     GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser, OrderProductsSerializer, \
-    UserRegistrationSerializer, VendorSerializer, DeliverySerializer, DeliveryDetailsSerializer, CommentSerializer
+    UserRegistrationSerializer, VendorSerializer, DeliverySerializer, DeliveryDetailsSerializer, CommentSerializer, \
+    CommentPatchSerializer
 
 from base.models import Telephone, Brand, UserProfile, Order, City, Vendor, Delivery, delivery_details, Address, Comment
 from .utils import write_error_to_file
@@ -655,6 +656,31 @@ class CommentGetPostAPIView(APIView):
                 print(data)
                 Comment.post_item(data)
                 return Response({"result": 'Success'}, status=status.HTTP_201_CREATED)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('POST_CommentGetPostAPIView', e)
+            error_message = str(e)
+            return Response({'error': error_message}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CommentPatchAPIView(APIView):
+    permission_classes = [AuthenticatedUser]
+    queryset = Comment.objects.all()
+
+    def patch(self, request, *args, **kwargs):
+        try:
+            comment_id = kwargs.get('id')
+
+            serializer = CommentPatchSerializer(data=request.data)
+            if serializer.is_valid():
+                data = serializer.validated_data
+
+                user_id = request.user.id
+                if Comment.check_comment_from_user(comment_id, user_id) or request.user.is_staff:
+                    Comment.patch_item(comment_id, data)
+                    return Response({"result": 'Success'}, status=status.HTTP_200_OK)
+                return Response({"error": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
             else:
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:

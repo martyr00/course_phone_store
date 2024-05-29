@@ -878,6 +878,23 @@ class Comment(models.Model):
     update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
 
     @classmethod
+    def check_comment_from_user(cls, comment_id, user_id):
+        with connection.cursor() as cursor:
+            query = """
+                SELECT
+                   base_comment.id
+                FROM base_comment JOIN auth_user
+                    ON auth_user.id = base_comment.user_id
+                WHERE base_comment.id = %s AND auth_user.id = %s
+            """
+            cursor.execute(query, [comment_id, user_id])
+            result = dictfetchall(cursor)
+            print(result)
+            if result:
+                return True
+            return False
+
+    @classmethod
     def get_by_telephone(cls, telephone_id):
         with connection.cursor() as cursor:
             query = """
@@ -931,18 +948,20 @@ class Comment(models.Model):
     @classmethod
     def patch_item(cls, comment_id, data):
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        data['update_time'] = current_time
-        telephone_id = data['telephone_id']
-        with connection.cursor() as cursor:
-            set_clause = ", ".join(f"{field} = %s" for field in data.keys())
-            update_query = f"""
-                UPDATE base_comment
-                SET {set_clause}
-                WHERE id = %s;
-            """
-            cursor.execute(update_query, list(data.values()) + [comment_id])
-        return Comment.get_by_telephone(telephone_id)
-
+        if isinstance(data, dict):
+            data['update_time'] = current_time
+            telephone_id = data.get('telephone_id')
+            with connection.cursor() as cursor:
+                set_clause = ", ".join(f"{field} = %s" for field in data.keys())
+                update_query = f"""
+                       UPDATE base_comment
+                       SET {set_clause}
+                       WHERE id = %s;
+                   """
+                cursor.execute(update_query, list(data.values()) + [comment_id])
+            return Comment.get_by_telephone(telephone_id)
+        else:
+            raise ValueError("Expected `data` to be a dictionary.")
     @classmethod
     def delete_item(cls, comment_id):
         pass

@@ -200,3 +200,11 @@ class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = ['telephone_id', 'text']
+
+
+class CommentPatchSerializer(serializers.ModelSerializer):
+    text = serializers.CharField()
+
+    class Meta:
+        model = Comment
+        fields = ['text']
