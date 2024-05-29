@@ -629,4 +629,3 @@ class DeliveryGetPatchDeleteItemAPIView(APIView):
             error_message = str(e)  # Extract error message
             write_error_to_file('PATCH_VendorGetPatchDeleteItemAPIView', error_message)
             return Response({'error': error_message}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
