@@ -877,6 +877,72 @@ class Comment(models.Model):
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
     update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
 
+    @classmethod
+    def get_by_telephone(cls, telephone_id):
+        with connection.cursor() as cursor:
+            query = """
+                    SELECT
+                        base_comment.id,
+                        base_comment.telephone_id,
+                        base_comment.user_id,
+                        base_comment.text,
+                        base_comment.created_time,
+                        base_comment.update_time,
+                        auth_user.username
+                    FROM base_comment JOIN auth_user
+                        ON auth_user.id = base_comment.user_id
+                    WHERE base_comment.telephone_id = %s
+                """
+            cursor.execute(query, [telephone_id])
+            result = dictfetchall(cursor)
+            return result
+
+    @classmethod
+    def post_item(cls, data):
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        data['created_time'] = current_time
+        data['update_time'] = current_time
+
+        with connection.cursor() as cursor:
+            query_telephone = """
+                   INSERT INTO base_commnent (
+                       text,
+                       user_id,
+                       telephone_id,
+                       update_time,
+                       created_time
+                   )
+                   VALUES (%s, %s, %s, %s, %s)
+               """
+            cursor.execute(
+                query_telephone, [
+                    data.get('text'),
+                    data.get('user_id'),
+                    data.get('telephone_id'),
+                    data['created_time'],
+                    data['update_time'],
+                ])
+        return Comment.get_by_telephone(data['telephone_id'])
+
+    @classmethod
+    def patch_item(cls, comment_id, data):
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        data['update_time'] = current_time
+        telephone_id = data['telephone_id']
+        with connection.cursor() as cursor:
+            set_clause = ", ".join(f"{field} = %s" for field in data.keys())
+            update_query = f"""
+                UPDATE base_comment
+                SET {set_clause}
+                WHERE id = %s;
+            """
+            cursor.execute(update_query, list(data.values()) + [comment_id])
+        return Comment.get_by_telephone(telephone_id)
+
+    @classmethod
+    def delete_item(cls, comment_id):
+        pass
+
 
 class Vendor(models.Model):
     first_name = models.CharField(max_length=50)
