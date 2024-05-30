@@ -643,7 +643,7 @@ class Order(models.Model):
     surname = models.CharField(max_length=50)
 
     @classmethod
-    def get_full_data(cls, order_status=None, user_id=None):
+    def get_full_data(cls, start_date, end_date, order_status=None, user_id=None, ):
         with connection.cursor() as cursor:
             query_conditions = []
             query_params = []
@@ -657,7 +657,9 @@ class Order(models.Model):
 
             query_condition = ""
             if query_conditions:
-                query_condition = "WHERE " + " AND ".join(query_conditions)
+                query_condition = "AND ".join(query_conditions)
+
+            query_date = f"AND base_order.update_time BETWEEN '{start_date}' AND '{end_date}'"
 
             query_order = f"""
                 SELECT
@@ -665,6 +667,8 @@ class Order(models.Model):
                     base_order.status AS status,
                     base_order.user_id AS user_id,
                     base_order.surname,
+                    DATE(base_order.created_time),
+                    DATE(base_order.update_time),
                     base_order.first_name,
                     base_order.second_name,
                     base_address.street_name AS street,
@@ -678,7 +682,9 @@ class Order(models.Model):
                 FROM base_order 
                 JOIN base_address ON base_order.address_id = base_address.id
                 JOIN base_city ON base_address.city_id = base_city.id
-                {query_condition};
+                WHERE 1=1
+                {query_condition}
+                {query_date}
             """
             cursor.execute(query_order, query_params)
             result_orders = dictfetchall(cursor)
@@ -732,24 +738,23 @@ class Order(models.Model):
 
                     product_prices = {}
                     for product_data in validated_data['products']:
-                        try:
-                            Telephone.edit_amount(product_data['telephone_id'], -product_data['amount'])
-                        except ValidationError as e:
-                            return {
-                                'error': e.message,
-                                'telephone_id': e.params['telephone_id']
-                            }
-
                         product_price_query = """
-                            SELECT price FROM base_telephone WHERE id = %s;
+                            SELECT price, discount FROM base_telephone WHERE id = %s;
                         """
                         cursor.execute(product_price_query, (product_data['telephone_id'],))
                         product_result = cursor.fetchone()
                         if not product_result:
                             raise Exception(f"No product found with ID {product_data['telephone_id']}")
-                        product_prices[product_data['telephone_id']] = product_result[0]
 
-                    # Insert the order
+                        product_price = product_result[0]
+                        discount_percentage = product_result[1]
+
+                        if discount_percentage is not None and discount_percentage > 0:
+                            discount_amount = product_price * (discount_percentage / 100)
+                            product_price -= discount_amount
+
+                        product_prices[product_data['telephone_id']] = product_price
+
                     order_query = """
                             INSERT INTO base_order (
                                 user_id, 
@@ -804,11 +809,14 @@ class Order(models.Model):
                 raise e
 
     @classmethod
-    def get_all(cls, user_id=None):
+    def get_all(cls, start_date, end_date, user_id=None):
         with connection.cursor() as cursor:
             query_user = ""
             if user_id:
-                query_user = f'WHERE base_order.user_id = {user_id}'
+                query_user = f'AND base_order.user_id = {user_id}'
+
+            query_date = f"AND base_order.update_time BETWEEN '{start_date}' AND '{end_date}'"
+
             query = f"""
             SELECT
                 base_order.id AS id,
@@ -816,6 +824,8 @@ class Order(models.Model):
                 base_order.user_id AS user_id,
                 base_order.status AS first_name,
                 base_order.status AS last_name,
+                DATE(base_order.update_time) AS update_time,
+                DATE(base_order.created_time) AS created_time,
                 base_address.street_name AS street,
                 base_address.post_code AS post_code,
                 base_city.name AS city,
@@ -824,11 +834,14 @@ class Order(models.Model):
                     FROM base_order_product_details
                     WHERE base_order_product_details.order_id = base_order.id
                 ) AS full_price
-            FROM base_order JOIN base_address
+            FROM base_order
+            JOIN base_address
                 ON base_order.address_id = base_address.id
             JOIN base_city
                 ON base_address.city_id = base_city.id
-                {query_user};
+            WHERE 1=1
+                {query_user}
+                {query_date};
             """
             cursor.execute(query)
             result = dictfetchall(cursor)

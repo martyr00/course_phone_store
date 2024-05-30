@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .const import END_DATE_DEFAULT, START_DATE_DEFAULT
 from .permission import IsAdminOrReadOnly, AuthenticatedUser, AllowOnlyAdmin, AuthenticatedOrSafeMethodsUser
 from .serializer import TelephoneSerializer, BrandSerializer, UserSerializer, \
     GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser, OrderProductsSerializer, \
@@ -461,10 +462,12 @@ class OrderGetPostAPIView(APIView):
             user_id = request.query_params.get('user_id', None)
             full_data = request.query_params.get('fulldata', None)
             order_status = request.query_params.get('status', None)
+            start_date = request.query_params.get('start_date', START_DATE_DEFAULT)
+            end_date = request.query_params.get('end_date', END_DATE_DEFAULT)
             if full_data:
-                result = Order.get_full_data(order_status, user_id)
+                result = Order.get_full_data(start_date, end_date, order_status, user_id)
                 return Response(result, status=status.HTTP_200_OK)
-            result = Order.get_all(user_id)
+            result = Order.get_all(start_date, end_date, user_id)
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             write_error_to_file('GET_BrandAPIView', e)
@@ -754,8 +757,8 @@ class ViewsGetFullDataAPIView(APIView):
         try:
             user_id = request.query_params.get('user_id', None)
             telephone_id = request.query_params.get('telephone_id', None)
-            start_date = request.query_params.get('start_date', '2024-05-23')
-            end_date = request.query_params.get('end_date', datetime.now().strftime('%Y-%m-%d'))
+            start_date = request.query_params.get('start_date', START_DATE_DEFAULT)
+            end_date = request.query_params.get('end_date', END_DATE_DEFAULT)
             result = Views.get_full_data_stat(telephone_id, user_id, start_date, end_date)
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
@@ -769,8 +772,8 @@ class OrderGetStatAVGCostAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            start_date = request.query_params.get('start_date', '2024-05-23')
-            end_date = request.query_params.get('end_date', datetime.now().strftime('%Y-%m-%d'))
+            start_date = request.query_params.get('start_date', START_DATE_DEFAULT)
+            end_date = request.query_params.get('end_date', END_DATE_DEFAULT)
             return Response(Order.get_avg_order_cost(start_date, end_date), status=status.HTTP_200_OK)
         except Exception as e:
             write_error_to_file('GET_OrderGetStatAVGCostAPIView', e)
@@ -783,8 +786,8 @@ class OrderGetStatAmountProductAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            start_date = request.query_params.get('start_date', '2024-05-23')
-            end_date = request.query_params.get('end_date', datetime.now().strftime('%Y-%m-%d'))
+            start_date = request.query_params.get('start_date', START_DATE_DEFAULT)
+            end_date = request.query_params.get('end_date', END_DATE_DEFAULT)
             return Response(Order.get_order_amount_product(start_date, end_date), status=status.HTTP_200_OK)
         except Exception as e:
             write_error_to_file('GET_OrderGetStatAVGCostAPIView', e)
@@ -797,8 +800,8 @@ class OrderGetStatAmountOrderAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            start_date = request.query_params.get('start_date', '2024-05-23')
-            end_date = request.query_params.get('end_date', datetime.now().strftime('%Y-%m-%d'))
+            start_date = request.query_params.get('start_date', START_DATE_DEFAULT)
+            end_date = request.query_params.get('end_date', END_DATE_DEFAULT)
             return Response(Order.get_order_amount(start_date, end_date), status=status.HTTP_200_OK)
         except Exception as e:
             write_error_to_file('GET_OrderGetStatAVGCostAPIView', e)

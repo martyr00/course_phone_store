@@ -33,3 +33,16 @@ def write_error_to_file(request, err):
 def dictfetchall(cursor):
     columns = [col[0] for col in cursor.description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+def get_last_month():
+    datetime_now = datetime.now()
+    year = datetime_now.year
+    month = datetime_now.month - 1
+    if month == 0:
+        year -= 1
+        month = 12
+    day = datetime_now.day
+
+    new_datetime = datetime(year, month, day).strftime('%Y-%m-%d')
+    return new_datetime
