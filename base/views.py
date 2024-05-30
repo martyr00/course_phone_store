@@ -754,10 +754,52 @@ class ViewsGetFullDataAPIView(APIView):
         try:
             user_id = request.query_params.get('user_id', None)
             telephone_id = request.query_params.get('telephone_id', None)
-            start_date = request.query_params.get('start_date', None)
-            end_date = request.query_params.get('end_date', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            start_date = request.query_params.get('start_date', '2024-05-23')
+            end_date = request.query_params.get('end_date', datetime.now().strftime('%Y-%m-%d'))
             result = Views.get_full_data_stat(telephone_id, user_id, start_date, end_date)
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             write_error_to_file('GET_ViewsGetFullDataAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class OrderGetStatAVGCostAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+    queryset = Order.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        try:
+            start_date = request.query_params.get('start_date', '2024-05-23')
+            end_date = request.query_params.get('end_date', datetime.now().strftime('%Y-%m-%d'))
+            return Response(Order.get_avg_order_cost(start_date, end_date), status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_OrderGetStatAVGCostAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class OrderGetStatAmountProductAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+    queryset = Order.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        try:
+            start_date = request.query_params.get('start_date', '2024-05-23')
+            end_date = request.query_params.get('end_date', datetime.now().strftime('%Y-%m-%d'))
+            return Response(Order.get_order_amount_product(start_date, end_date), status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_OrderGetStatAVGCostAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class OrderGetStatAmountOrderAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+    queryset = Order.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        try:
+            start_date = request.query_params.get('start_date', '2024-05-23')
+            end_date = request.query_params.get('end_date', datetime.now().strftime('%Y-%m-%d'))
+            return Response(Order.get_order_amount(start_date, end_date), status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_OrderGetStatAVGCostAPIView', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

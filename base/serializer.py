@@ -36,7 +36,6 @@ class TelephoneSerializer(serializers.ModelSerializer):
     built_in_memory = serializers.CharField(max_length=20)
     price = serializers.IntegerField()
     discount = serializers.IntegerField(max_value=100, min_value=0)
-    recommended_price = serializers.IntegerField(allow_null=True)
     weight = serializers.FloatField()
     number_stock = serializers.IntegerField()
     release_date = serializers.DateField()
@@ -50,7 +49,6 @@ class TelephoneSerializer(serializers.ModelSerializer):
                   'built_in_memory',
                   'price',
                   'discount',
-                  'recommended_price',
                   'weight',
                   'number_stock',
                   'release_date',

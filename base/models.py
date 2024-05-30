@@ -286,7 +286,6 @@ class Telephone(models.Model):
     built_in_memory = models.CharField(max_length=20)
     price = models.IntegerField()
     discount = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(100)])
-    recommended_price = models.IntegerField(null=True, blank=True)
     weight = models.FloatField()
     number_stock = models.IntegerField()
     release_date = models.DateField()
@@ -375,8 +374,6 @@ class Telephone(models.Model):
                         base_telephoneimage ON base_telephone.id = base_telephoneimage.telephone_id
                     WHERE 1=1
                 """
-                print('qweqw')
-
 
             conditions = []
 
@@ -426,7 +423,6 @@ class Telephone(models.Model):
                     built_in_memory,
                     price,
                     discount,
-                    recommended_price,
                     weight,
                     number_stock,
                     brand_id,
@@ -434,7 +430,7 @@ class Telephone(models.Model):
                     created_time,
                     update_time
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id;
             """
             cursor.execute(
@@ -445,7 +441,6 @@ class Telephone(models.Model):
                     data.get('built_in_memory'),
                     data.get('price'),
                     data.get('discount'),
-                    data.get('recommended_price'),
                     data.get('weight'),
                     data.get('number_stock'),
                     data.get('brand_id'),
@@ -714,6 +709,7 @@ class Order(models.Model):
                 order['products'] = result_order_product_details
 
             return result_orders
+
     @classmethod
     def post(cls, validated_data):
         with transaction.atomic():
@@ -945,6 +941,72 @@ class Order(models.Model):
             raise e
         except Exception as e:
             raise e
+
+    @classmethod
+    def get_avg_order_cost(cls, start_date=None, end_date=None):
+        with connection.cursor() as cursor:
+            query = """
+                SELECT
+                    DATE(base_order.created_time) AS date,
+                    AVG(
+                        (
+                            SELECT SUM(base_order_product_details.amount * base_order_product_details.price)
+                            FROM base_order_product_details
+                            WHERE base_order_product_details.order_id = base_order.id
+                        )
+                    ) AS avg_full_price
+                FROM
+                    base_order
+                JOIN
+                    base_address ON base_order.address_id = base_address.id
+                JOIN
+                    base_city ON base_address.city_id = base_city.id
+                WHERE
+                    DATE(base_order.created_time) BETWEEN %s AND %s
+                GROUP BY
+                    DATE(base_order.created_time)
+                """
+            cursor.execute(query, [start_date, end_date])
+            result = dictfetchall(cursor)
+            return result
+
+    @classmethod
+    def get_order_amount_product(cls, start_date=None, end_date=None):
+        with connection.cursor() as cursor:
+            query = """
+                SELECT
+                    DATE(base_order.created_time) AS date,
+                    SUM(base_order_product_details.amount) AS total_sold
+                FROM
+                    base_order
+                JOIN
+                    base_order_product_details ON base_order.id = base_order_product_details.order_id
+                WHERE
+                    DATE(base_order.created_time) BETWEEN %s AND %s
+                GROUP BY
+                    DATE(base_order.created_time)
+                """
+            cursor.execute(query, [start_date, end_date])
+            result = dictfetchall(cursor)
+            return result
+
+    @classmethod
+    def get_order_amount(cls, start_date=None, end_date=None):
+        with connection.cursor() as cursor:
+            query = """
+                SELECT
+                    DATE(created_time) AS date,
+                    COUNT(id) AS order_count
+                FROM
+                    base_order
+                WHERE
+                    DATE(base_order.created_time) BETWEEN %s AND %s
+                GROUP BY
+                    DATE(base_order.created_time)
+                """
+            cursor.execute(query, [start_date, end_date])
+            result = dictfetchall(cursor)
+            return result
 
 
 class order_product_details(models.Model):
@@ -1419,30 +1481,28 @@ class Views(models.Model):
             queue_conditions.append(f"base_views.telephone_id = {telephone_id}")
         if user_id:
             queue_conditions.append(f"base_views.user_id = {user_id}")
-        if start_date:
-            queue_conditions.append(f"base_views.created_time >= '{start_date}'")
-        if end_date:
-            queue_conditions.append(f"base_views.created_time <= '{end_date}'")
 
         queue = ""
         if queue_conditions:
-            queue = "WHERE " + " AND ".join(queue_conditions)
+            queue = "AND " + " AND ".join(queue_conditions)
 
         query = f"""
                     SELECT
                         base_views.telephone_id,
                         base_views.user_id,
-                        base_views.created_time,
+                        DATE(base_views.created_time) AS date,
                         auth_user.username,
                         base_telephone.title
                     FROM base_views
                     JOIN auth_user ON auth_user.id = base_views.user_id
                     JOIN base_telephone ON base_views.telephone_id = base_telephone.id
+                    WHERE
+                        DATE(base_views.created_time) BETWEEN %s AND %s
                     {queue}
                 """
 
         with connection.cursor() as cursor:
-            cursor.execute(query)
+            cursor.execute(query, [start_date, end_date])
             result = dictfetchall(cursor)
 
         return result
