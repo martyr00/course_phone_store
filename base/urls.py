@@ -1,15 +1,11 @@
 from django.urls import path
 
-from base.views import UsersAuthenticatedGetPatchAPIView, UsersAdminGetAPIView, TelephoneGetPostAPIView, \
-    BrandGetPostAPIView, TelephoneGetItemPatchDeleteAPIView, BrandGetItemPatchDeleteAPIView, \
-    UsersAdminGetItemPatchDeleteAPIView, TelephoneGetListAPIView, CityAPIView, OrderGetListByUserAPIView, \
-    OrderGetPostAPIView, OrderGetItemPatchAPIView, OrderGetSelfAPIView, VendorGetPostAPIView, \
-    VendorGetPatchDeleteItemAPIView, DeliveryGetPostAPIView, DeliveryGetPatchDeleteItemAPIView, CommentGetPostAPIView, \
-    CommentPatchAPIView
+from base.views import *
 
 urlpatterns = [
     path('/product/<int:id>', TelephoneGetItemPatchDeleteAPIView.as_view(), name='telephone'),
     path('/product', TelephoneGetPostAPIView.as_view(), name='telephones'),
+    path('/filters', FiltersForTelephoneGetAPIView.as_view(), name='filters'),
 
     path('/product_by_ids', TelephoneGetListAPIView.as_view(), name='list_telephones'),
 
@@ -36,5 +32,7 @@ urlpatterns = [
 
     path('/comment', CommentGetPostAPIView.as_view(), name='comment'),
     path('/comment/<int:id>', CommentPatchAPIView.as_view(), name='comment'),
+
+    path('/views', ViewsGetFullDataAPIView.as_view(), name='views'),
 
 ]

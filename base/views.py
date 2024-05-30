@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from django.contrib.auth.models import User
 from drf_yasg.utils import swagger_auto_schema
@@ -14,7 +15,8 @@ from .serializer import TelephoneSerializer, BrandSerializer, UserSerializer, \
     UserRegistrationSerializer, VendorSerializer, DeliverySerializer, DeliveryDetailsSerializer, CommentSerializer, \
     CommentPatchSerializer
 
-from base.models import Telephone, Brand, UserProfile, Order, City, Vendor, Delivery, delivery_details, Address, Comment
+from base.models import Telephone, Brand, UserProfile, Order, City, Vendor, Delivery, delivery_details, Address, \
+    Comment, Views
 from .utils import write_error_to_file
 
 
@@ -27,6 +29,15 @@ class TelephoneGetPostAPIView(APIView):
         try:
             sort_by = request.query_params.get('sort_by', 'title')
             sort_dir = request.query_params.get('sort_dir', 'asc')
+
+            diagonal_screen = request.query_params.getlist('diagonal_screen')
+            built_in_memory = request.query_params.getlist('built_in_memory')
+            brand = request.query_params.getlist('brand')
+            price_min = request.query_params.get('price_min')
+            price_max = request.query_params.get('price_max')
+            weight_min = request.query_params.get('weight_min')
+            weight_max = request.query_params.get('weight_max')
+
             sort_dict = {
                 'title': 'base_telephone.title',
                 'price': 'base_telephone.price',
@@ -41,8 +52,29 @@ class TelephoneGetPostAPIView(APIView):
             if request.user.is_staff:
                 query_params_full_date = request.query_params.get('fulldata', None)
                 if query_params_full_date:
-                    return Response(Telephone.get_full_data_all(sort_field), status=status.HTTP_200_OK)
-            result = Telephone.get_all(sort_field)
+                    result = Telephone.get_all(
+                        sort_field,
+                        True,
+                        diagonal_screen,
+                        built_in_memory,
+                        brand,
+                        price_min,
+                        price_max,
+                        weight_min,
+                        weight_max
+                    )
+                    return Response(result, status=status.HTTP_200_OK)
+            result = Telephone.get_all(
+                sort_field,
+                False,
+                diagonal_screen,
+                built_in_memory,
+                brand,
+                price_min,
+                price_max,
+                weight_min,
+                weight_max
+            )
             serialized_result = GetAllTelephoneSerializer(result, many=True)
             return Response(serialized_result.data, status=status.HTTP_200_OK)
         except Exception as e:
@@ -67,9 +99,12 @@ class TelephoneGetItemPatchDeleteAPIView(APIView):
     serializer = TelephoneSerializer
     permission_classes = [IsAdminOrReadOnly]
 
-    def get(self, *args, **kwargs):
+    def get(self, request, *args, **kwargs):
         try:
             telephone_id = kwargs.get("id", None)
+            if request.user.is_authenticated:
+                data = {'telephone_id': telephone_id, 'user_id': request.user.id}
+                Views.post_item(data)
             result_get_item = Telephone.get_item(telephone_id)
             if result_get_item:
                 return Response(result_get_item, status=status.HTTP_200_OK)
@@ -124,6 +159,19 @@ class TelephoneGetListAPIView(APIView):
             return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             write_error_to_file('GET_item_TelephoneGetAPIView', e)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class FiltersForTelephoneGetAPIView(APIView):
+    queryset = Telephone.objects.all()
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            result = Telephone.get_filters()
+            return Response(result, status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_FiltersForTelephoneGetAPIView', e)
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -412,8 +460,9 @@ class OrderGetPostAPIView(APIView):
         try:
             user_id = request.query_params.get('user_id', None)
             full_data = request.query_params.get('fulldata', None)
+            order_status = request.query_params.get('status', None)
             if full_data:
-                result = Order.get_full_data(user_id)
+                result = Order.get_full_data(order_status, user_id)
                 return Response(result, status=status.HTTP_200_OK)
             result = Order.get_all(user_id)
             return Response(result, status=status.HTTP_200_OK)
@@ -451,10 +500,18 @@ class OrderGetItemPatchAPIView(APIView):
             user_id = request.user.id
             order = Order.get_item(order_id)
             current_status = order['status']
+
             if order['user_id'] == user_id or request.user.is_staff:
                 if current_status != 'PENDING' and not request.user.is_staff:
-                    return Response({'error': 'Only admin can update order when status is not PENDING'},
-                                    status=status.HTTP_403_FORBIDDEN)
+                    return Response({
+                        'error': 'Only admin can update order when status is not PENDING'
+                    }, status=status.HTTP_403_FORBIDDEN)
+
+                data = request.data
+                if data.get('status') == 'CANCELED':
+                    for product in order['order_product_details']:
+                        Telephone.edit_amount(product['telephone_id'], product['amount'])
+
                 result = Order.patch(order_id, request.data)
                 return Response(result, status=status.HTTP_200_OK)
             return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
@@ -687,3 +744,20 @@ class CommentPatchAPIView(APIView):
             write_error_to_file('POST_CommentGetPostAPIView', e)
             error_message = str(e)
             return Response({'error': error_message}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ViewsGetFullDataAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+    queryset = Views.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        try:
+            user_id = request.query_params.get('user_id', None)
+            telephone_id = request.query_params.get('telephone_id', None)
+            start_date = request.query_params.get('start_date', None)
+            end_date = request.query_params.get('end_date', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            result = Views.get_full_data_stat(telephone_id, user_id, start_date, end_date)
+            return Response(result, status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_ViewsGetFullDataAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

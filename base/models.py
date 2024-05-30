@@ -328,71 +328,87 @@ class Telephone(models.Model):
         return data
 
     @classmethod
-    def get_full_data_all(cls, sort_by):
+    def get_all(cls, sort_by, full_data, diagonal_screen=None, built_in_memory=None, brand=None, price_min=None, price_max=None,
+                weight_min=None, weight_max=None):
         with connection.cursor() as cursor:
-            query = """
-                        SELECT 
-                            base_telephone.id AS id, 
-                            base_telephone.title AS title, 
-                            base_telephone.price AS price, 
-                            base_brand.title AS brand,
-                            base_telephone.description AS description, 
-                            base_telephone.diagonal_screen AS diagonal_screen,
-                            base_telephone.built_in_memory AS built_in_memory,
-                            base_telephone.weight AS weight,
-                            base_telephone.number_stock AS number_stock,
-                            base_telephone.discount AS discount, 
-                            base_telephone.release_date AS release_date,
-                            COALESCE(json_agg(base_telephoneimage.image), '[]'::json) AS images
-                        FROM 
-                            base_telephone
-                        JOIN 
-                            base_brand ON base_telephone.brand_id = base_brand.id
-                        LEFT JOIN 
-                            base_telephoneimage ON base_telephone.id = base_telephoneimage.telephone_id
-                        GROUP BY 
-                            base_telephone.id, 
-                            base_telephone.title,
-                            base_telephone.price, 
-                            base_brand.title
-                        ORDER BY 
-                            {};
-                        """.format(sort_by)
-            cursor.execute(query)
-            result = dictfetchall(cursor)
-        return result
+            print(full_data)
+            if full_data:
+                query = """
+                    SELECT 
+                        base_telephone.id AS id, 
+                        base_telephone.title AS title, 
+                        base_telephone.price AS price, 
+                        base_brand.title AS brand,
+                        base_telephone.description AS description, 
+                        base_telephone.diagonal_screen AS diagonal_screen,
+                        base_telephone.built_in_memory AS built_in_memory,
+                        base_telephone.weight AS weight,
+                        base_telephone.number_stock AS number_stock,
+                        base_telephone.discount AS discount, 
+                        base_telephone.release_date AS release_date,
+                        COALESCE(json_agg(base_telephoneimage.image), '[]'::json) AS images
+                    FROM base_telephone 
+                    JOIN base_brand ON base_telephone.brand_id = base_brand.id
+                    LEFT JOIN base_telephoneimage ON base_telephone.id = base_telephoneimage.telephone_id
+                    WHERE 1=1
+                """
+            else:
+                query = """
+                    SELECT 
+                        base_telephone.id AS id, 
+                        base_telephone.title AS title, 
+                        base_telephone.price AS price, 
+                        base_brand.title AS brand,
+                        base_telephone.description AS description, 
+                        base_telephone.diagonal_screen AS diagonal_screen,
+                        base_telephone.built_in_memory AS built_in_memory,
+                        base_telephone.weight AS weight,
+                        base_telephone.number_stock AS number_stock,
+                        base_telephone.discount AS discount, 
+                        base_telephone.release_date AS release_date,
+                        COALESCE(json_agg(base_telephoneimage.image), '[]'::json) AS images
+                    FROM 
+                        base_telephone
+                    JOIN 
+                        base_brand ON base_telephone.brand_id = base_brand.id
+                    LEFT JOIN 
+                        base_telephoneimage ON base_telephone.id = base_telephoneimage.telephone_id
+                    WHERE 1=1
+                """
+                print('qweqw')
 
-    @classmethod
-    def get_all(cls, sort_by):
-        with connection.cursor() as cursor:
-            query = """
-                        SELECT 
-                            base_telephone.id AS id, 
-                            base_telephone.title AS title, 
-                            base_telephone.price AS price, 
-                            base_brand.title AS brand,
-                            base_telephone.description AS description, 
-                            base_telephone.diagonal_screen AS diagonal_screen,
-                            base_telephone.built_in_memory AS built_in_memory,
-                            base_telephone.weight AS weight,
-                            base_telephone.number_stock AS number_stock,
-                            base_telephone.discount AS discount, 
-                            base_telephone.release_date AS release_date,
-                            COALESCE(json_agg(base_telephoneimage.image), '[]'::json) AS images
-                        FROM base_telephone JOIN base_brand 
-                            ON base_telephone.brand_id = base_brand.id
-                        LEFT JOIN base_telephoneimage 
-                            ON base_telephone.id = base_telephoneimage.telephone_id
-                        GROUP BY 
-                            base_telephone.id, 
-                            base_telephone.title,
-                            base_telephone.price, 
-                            base_brand.title
-                        ORDER BY 
-                            {};
-                        """.format(sort_by)
+
+            conditions = []
+
+            if diagonal_screen:
+                conditions.append(f"base_telephone.diagonal_screen IN ({', '.join(map(str, diagonal_screen))})")
+
+            if built_in_memory:
+                conditions.append(f"base_telephone.built_in_memory IN ({', '.join(map(str, built_in_memory))})")
+
+            if brand:
+                brand_list = "', '".join(brand)
+                conditions.append(f"base_brand.title IN ('{brand_list}')")
+
+            if price_min is not None:
+                conditions.append(f"base_telephone.price >= {price_min}")
+
+            if price_max is not None:
+                conditions.append(f"base_telephone.price <= {price_max}")
+
+            if weight_min is not None:
+                conditions.append(f"base_telephone.weight >= {weight_min}")
+
+            if weight_max is not None:
+                conditions.append(f"base_telephone.weight <= {weight_max}")
+
+            if conditions:
+                query += " AND " + " AND ".join(conditions)
+
+            query += f" GROUP BY base_telephone.id, base_telephone.title, base_telephone.price, base_brand.title ORDER BY {sort_by};"
             cursor.execute(query)
             result = dictfetchall(cursor)
+
         return result
 
     @classmethod
@@ -523,6 +539,66 @@ class Telephone(models.Model):
             cursor.execute(query_telephone, [new_amount, current_time, telephone_id])
             return cls.objects.get(id=telephone_id)
 
+    @classmethod
+    def get_filters(cls):
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                    SELECT MIN(price) AS min_price, MAX(price) AS max_price
+                    FROM base_telephone
+                """)
+            row = cursor.fetchone()
+            price_range = {'min_price': row[0], 'max_price': row[1]}
+
+            cursor.execute("""
+                    SELECT DISTINCT diagonal_screen
+                    FROM base_telephone
+                    ORDER BY diagonal_screen
+                """)
+            diagonal_screen_values = [row[0] for row in cursor.fetchall()]
+
+            cursor.execute("""
+                    SELECT DISTINCT built_in_memory
+                    FROM base_telephone
+                    ORDER BY built_in_memory
+                """)
+            built_in_memory_values = [row[0] for row in cursor.fetchall()]
+
+            cursor.execute("""
+                    SELECT DISTINCT base_brand.title
+                    FROM base_telephone
+                    JOIN base_brand ON base_telephone.brand_id = base_brand.id
+                    ORDER BY base_brand.title
+                """)
+            brand_values = [row[0] for row in cursor.fetchall()]
+
+            cursor.execute("""
+                            SELECT MIN(weight) AS min_weight, MAX(weight) AS max_weight
+                            FROM base_telephone
+                        """)
+            row = cursor.fetchone()
+            weight_range = {'min': row[0], 'max': row[1]}
+
+        items = [
+            {
+                "title": "diagonal_screen",
+                "options": diagonal_screen_values
+            },
+            {
+                "title": "built_in_memory",
+                "options": built_in_memory_values
+            },
+            {
+                "title": "brand",
+                "options": brand_values
+            }
+        ]
+
+        return {
+            "price_range": price_range,
+            "weight": weight_range,
+            "items": items,
+        }
+
 
 class TelephoneImage(models.Model):
     title = models.CharField(max_length=100, unique=True)
@@ -572,19 +648,30 @@ class Order(models.Model):
     surname = models.CharField(max_length=50)
 
     @classmethod
-    def get_full_data(cls, user_id=None):
+    def get_full_data(cls, order_status=None, user_id=None):
         with connection.cursor() as cursor:
-            query_user = ""
-            if user_id:
-                query_user = f'WHERE base_order.user_id = {user_id}'  # Modify query_user if user_id is provided
+            query_conditions = []
+            query_params = []
+
+            if order_status is not None:
+                query_conditions.append("base_order.status = %s")
+                query_params.append(order_status.upper())
+            if user_id is not None:
+                query_conditions.append("base_order.user_id = %s")
+                query_params.append(user_id)
+
+            query_condition = ""
+            if query_conditions:
+                query_condition = "WHERE " + " AND ".join(query_conditions)
+
             query_order = f"""
                 SELECT
                     base_order.id AS id,
                     base_order.status AS status,
                     base_order.user_id AS user_id,
                     base_order.surname,
-                     base_order.first_name,
-                     base_order.second_name,
+                    base_order.first_name,
+                    base_order.second_name,
                     base_address.street_name AS street,
                     base_address.post_code AS post_code,
                     base_city.name AS city,
@@ -596,16 +683,17 @@ class Order(models.Model):
                 FROM base_order 
                 JOIN base_address ON base_order.address_id = base_address.id
                 JOIN base_city ON base_address.city_id = base_city.id
-                {query_user};
+                {query_condition};
             """
-            cursor.execute(query_order)
+            cursor.execute(query_order, query_params)
             result_orders = dictfetchall(cursor)
 
             for order in result_orders:
                 order_id = order['id']
-                query_order_product_details = f"""
+                query_order_product_details = """
                     SELECT
                         base_order_product_details.id,
+                        base_order_product_details.telephone_id,
                         base_order_product_details.price,
                         base_order_product_details.amount,
                         base_order_product_details.order_id,
@@ -613,20 +701,19 @@ class Order(models.Model):
                         (
                         SELECT image
                         FROM base_telephoneimage
-                        WHERE telephone_id =  base_order_product_details.telephone_id
+                        WHERE telephone_id = base_order_product_details.telephone_id
                         ORDER BY base_telephoneimage.created_time
                         LIMIT 1
                         )
                     FROM base_order_product_details
-                    WHERE order_id = {order_id}
+                    WHERE order_id = %s
                 """
-                cursor.execute(query_order_product_details)
+                cursor.execute(query_order_product_details, [order_id])
                 result_order_product_details = dictfetchall(cursor)
 
                 order['products'] = result_order_product_details
 
             return result_orders
-
     @classmethod
     def post(cls, validated_data):
         with transaction.atomic():
@@ -821,8 +908,6 @@ class Order(models.Model):
 
     @classmethod
     def patch(cls, item_id, data):
-        if not isinstance(data, dict):
-            raise ValueError("Data must be a dictionary")
 
         item_fields = {
             'Address': ['city_id', 'street_name', 'post_code'],
@@ -1366,7 +1451,6 @@ class Views(models.Model):
     def post_item(cls, data):
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         data['created_time'] = current_time
-
         with connection.cursor() as cursor:
             query_telephone = """
                        INSERT INTO base_views (
