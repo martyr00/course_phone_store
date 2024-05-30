@@ -1021,6 +1021,34 @@ class Order(models.Model):
             result = dictfetchall(cursor)
             return result
 
+    @classmethod
+    def get_total_order_cost(cls, start_date=None, end_date=None):
+        with connection.cursor() as cursor:
+            query = """
+                SELECT
+                    DATE(base_order.created_time) AS date,
+                    SUM(
+                        (
+                            SELECT SUM(base_order_product_details.amount * base_order_product_details.price)
+                            FROM base_order_product_details
+                            WHERE base_order_product_details.order_id = base_order.id
+                        )
+                    ) AS total_full_price
+                FROM
+                    base_order
+                JOIN
+                    base_address ON base_order.address_id = base_address.id
+                JOIN
+                    base_city ON base_address.city_id = base_city.id
+                WHERE
+                    DATE(base_order.created_time) BETWEEN %s AND %s
+                GROUP BY
+                    DATE(base_order.created_time)
+                """
+            cursor.execute(query, [start_date, end_date])
+            result = dictfetchall(cursor)
+            return result
+
 
 class order_product_details(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE)

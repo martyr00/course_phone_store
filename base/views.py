@@ -806,3 +806,17 @@ class OrderGetStatAmountOrderAPIView(APIView):
         except Exception as e:
             write_error_to_file('GET_OrderGetStatAVGCostAPIView', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class OrderGetTotalSumAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+    queryset = Order.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        try:
+            start_date = request.query_params.get('start_date', START_DATE_DEFAULT)
+            end_date = request.query_params.get('end_date', END_DATE_DEFAULT)
+            return Response(Order.get_total_order_cost(start_date, end_date), status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_OrderGetStatAVGCostAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
