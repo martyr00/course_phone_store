@@ -425,7 +425,7 @@ class CityAPIView(APIView):
 
 
 class OrderGetPostAPIView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [AllowOnlyAdmin]
     queryset = Order.objects.all()
     serializers = OrderSerializerAuthUser
 
@@ -621,13 +621,12 @@ class DeliveryGetPostAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            sort_by = request.query_params.get('sort_by', 'full_name')
+            sort_by = request.query_params.get('sort_by', 'time')
             sort_dir = request.query_params.get('sort_dir', 'asc')
             sort_dict = {
-                'full_name': 'full_name',
                 'delivery_price': 'base_delivery.delivery_price',
-                'full_price': 'full_price',
-                'time': 'created_time',
+                'time': 'base_delivery.created_time',
+                'full_name': 'full_name',
             }
             if sort_by not in sort_dict:
                 sort_by = 'surname'
@@ -635,11 +634,7 @@ class DeliveryGetPostAPIView(APIView):
             sort_field = sort_dict[sort_by]
             if sort_dir == 'desc':
                 sort_field += ' DESC'
-            query_params_full_date = request.query_params.get('fulldata', None)
             vendor_id = request.query_params.get('vendor', None)
-            if query_params_full_date:
-                result = Delivery.get_full_data(sort_field, vendor_id)
-                return Response(result, status=status.HTTP_200_OK)
             result = Delivery.get_all(sort_field, vendor_id)
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:

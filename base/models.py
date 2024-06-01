@@ -101,7 +101,7 @@ class UserProfile(models.Model):
 
     @classmethod
     def patch(cls, user_id, data):
-        user_fields = ['username', 'first_name', 'last_name', 'email', 'password', 'is_staff', 'is_active',
+        user_fields = ['username', 'first_name', 'last_name', 'email', 'password', 'is_active',
                        'date_joined']
         profile_fields = ['image', 'number_telephone', 'birth_date']
 
@@ -1365,7 +1365,7 @@ class Delivery(models.Model):
                     base_delivery.id as delivery_id,
                     base_delivery.delivery_price as delivery_price,
                     base_delivery.vendor_id,
-                    base_vendor.surname
+                    CONCAT(base_vendor.surname, ' ', base_vendor.first_name, ' ', base_vendor.second_name) as full_name
                 FROM
                     base_vendor, base_delivery
                 WHERE base_vendor.id = base_delivery.vendor_id
