@@ -1,0 +1,7 @@
+/build
+/public
+.eslintrc.js
+/customRulesStylelint
+
+.env
+.env.*

@@ -1,0 +1,70 @@
+module.exports = {
+	env: {
+		browser: true,
+		es6: true,
+		node: true,
+	},
+	extends: [
+		'airbnb',
+		'eslint:recommended',
+		'plugin:react/recommended',
+		'plugin:sonarjs/recommended',
+        'plugin:@typescript-eslint/eslint-recommended',
+        'plugin:@typescript-eslint/recommended',
+	],
+    plugins: [
+        '@typescript-eslint',
+    ],
+    parser: '@typescript-eslint/parser',
+    parserOptions: {
+        requireConfigFile: false,
+    },
+    settings: {
+        'import/resolver': {
+            node: {
+                extensions: ['.js', '.jsx', '.ts', '.tsx'],
+            },
+		},
+	},
+	rules: {
+		'import/extensions': 0,
+		indent: [2, 'tab', {
+			SwitchCase: 1,
+			VariableDeclarator: 1,
+		}],
+		'no-console': 2,
+		'no-alert': 2,
+		'no-tabs': 0,
+		'linebreak-style': 0,
+		'react/display-name': 0,
+		'no-shadow': 0,
+		'react/prop-types': 0,
+        'import/no-extraneous-dependencies': 0,
+		'import/prefer-default-export': 0,
+        '@typescript-eslint/no-explicit-any': 2,
+		'react/jsx-indent': [2, 'tab'],
+		'react/jsx-indent-props': [2, 'tab'],
+		'react/jsx-filename-extension': [1, {
+			extensions: ['.js', '.jsx', '.ts', '.tsx'],
+		}],
+        'no-param-reassign': 0,
+		'sonarjs/no-duplicate-string': 0,
+		'react/require-default-props': 0,
+		'no-underscore-dangle': 0,
+        '@typescript-eslint/no-var-requires': 0,
+        'sonarjs/cognitive-complexity': 0,
+        'import/no-cycle': 0,
+        'camelcase': 0,
+        'react/jsx-props-no-spreading': 0,
+        'consistent-return': 0,
+        '@typescript-eslint/ban-ts-comment': 0,
+		'jsx-a11y/no-static-element-interactions': 0,
+		'jsx-a11y/click-events-have-key-events': 0,
+		'react/function-component-definition': 0,
+        'sonarjs/max-switch-cases': 0,
+		'eol-last': 0,
+		'object-shorthand': [2, 'always', {
+			avoidExplicitReturnArrows: true,
+		}],
+	},
+};
