@@ -14,7 +14,7 @@ from .permission import IsAdminOrReadOnly, AuthenticatedUser, AllowOnlyAdmin, Au
 from .serializer import TelephoneSerializer, BrandSerializer, UserSerializer, \
     GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser, OrderProductsSerializer, \
     UserRegistrationSerializer, VendorSerializer, DeliverySerializer, DeliveryDetailsSerializer, CommentSerializer, \
-    CommentPatchSerializer
+    CommentPatchSerializer, DeliveryPatchSerializer
 
 from base.models import Telephone, Brand, UserProfile, Order, City, Vendor, Delivery, delivery_details, Address, \
     Comment, Views
@@ -424,10 +424,31 @@ class CityAPIView(APIView):
             return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class OrderGetPostAPIView(APIView):
+class OrderGetAPIView(APIView):
     permission_classes = [AllowOnlyAdmin]
     queryset = Order.objects.all()
     serializers = OrderSerializerAuthUser
+
+    def get(self, request, *args, **kwargs):
+        try:
+            user_id = request.query_params.get('user_id', None)
+            full_data = request.query_params.get('fulldata', None)
+            order_status = request.query_params.get('status', None)
+            start_date = request.query_params.get('start_date', START_DATE_DEFAULT)
+            end_date = request.query_params.get('end_date', END_DATE_DEFAULT)
+            if full_data:
+                result = Order.get_full_data(start_date, end_date, order_status, user_id)
+                return Response(result, status=status.HTTP_200_OK)
+            result = Order.get_all(start_date, end_date, user_id)
+            return Response(result, status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_BrandAPIView', e)
+            return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class OrderPostAPIView(APIView):
+    permission_classes = [AllowAny]
+    queryset = Order.objects.all()
 
     def post(self, request, *args, **kwargs):
         try:
@@ -456,22 +477,6 @@ class OrderGetPostAPIView(APIView):
         except Exception as e:
             write_error_to_file('POST_GetPostOrderAPIView', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    def get(self, request, *args, **kwargs):
-        try:
-            user_id = request.query_params.get('user_id', None)
-            full_data = request.query_params.get('fulldata', None)
-            order_status = request.query_params.get('status', None)
-            start_date = request.query_params.get('start_date', START_DATE_DEFAULT)
-            end_date = request.query_params.get('end_date', END_DATE_DEFAULT)
-            if full_data:
-                result = Order.get_full_data(start_date, end_date, order_status, user_id)
-                return Response(result, status=status.HTTP_200_OK)
-            result = Order.get_all(start_date, end_date, user_id)
-            return Response(result, status=status.HTTP_200_OK)
-        except Exception as e:
-            write_error_to_file('GET_BrandAPIView', e)
-            return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class OrderGetItemPatchAPIView(APIView):
@@ -505,7 +510,7 @@ class OrderGetItemPatchAPIView(APIView):
             current_status = order['status']
 
             if order['user_id'] == user_id or request.user.is_staff:
-                if current_status != 'PENDING' and not request.user.is_staff:
+                if current_status not in ['PENDING', 'PREPARATION'] and not request.user.is_staff:
                     return Response({
                         'error': 'Only admin can update order when status is not PENDING'
                     }, status=status.HTTP_403_FORBIDDEN)
@@ -588,8 +593,8 @@ class VendorGetPatchDeleteItemAPIView(APIView):
             vendor_id = kwargs.get("id", None)
             serializer = VendorSerializer(data=request.data)
             if serializer.is_valid():
-                result = Vendor.patch(vendor_id, serializer.validated_data)
-                return Response(result, status=status.HTTP_201_CREATED)
+                Vendor.patch(vendor_id, serializer.validated_data)
+                return Response('Successful', status=status.HTTP_201_CREATED)
             else:
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -675,10 +680,29 @@ class DeliveryGetPatchDeleteItemAPIView(APIView):
     def patch(self, request, *args, **kwargs):
         try:
             delivery_id = kwargs.get("id", None)
+            serializer = DeliveryPatchSerializer(data=request.data)
+            if serializer.is_valid():
+                Delivery.patch(delivery_id, serializer.validated_data)
+                return Response('Successful', status=status.HTTP_201_CREATED)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            error_message = str(e)
+            write_error_to_file('PATCH_VendorGetPatchDeleteItemAPIView', error_message)
+            return Response({'error': error_message}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class DeliveryDetailsPatch(APIView):
+    permission_classes = [AllowOnlyAdmin]
+    queryset = delivery_details.objects.all()
+
+    def patch(self, request, *args, **kwargs):
+        try:
+            delivery_details_id = kwargs.get("id", None)
             serializer = DeliveryDetailsSerializer(data=request.data)
             if serializer.is_valid():
-                result = delivery_details.patch(delivery_id, serializer.validated_data)
-                return Response(result, status=status.HTTP_201_CREATED)
+                result = delivery_details.patch(delivery_details_id, serializer.validated_data)
+                return Response('Successful', status=status.HTTP_201_CREATED)
             else:
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -750,11 +774,9 @@ class ViewsGetFullDataAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            user_id = request.query_params.get('user_id', None)
-            telephone_id = request.query_params.get('telephone_id', None)
             start_date = request.query_params.get('start_date', START_DATE_DEFAULT)
             end_date = request.query_params.get('end_date', END_DATE_DEFAULT)
-            result = Views.get_full_data_stat(telephone_id, user_id, start_date, end_date)
+            result = Views.get_full_data_stat(start_date, end_date)
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             write_error_to_file('GET_ViewsGetFullDataAPIView', e)
@@ -812,6 +834,20 @@ class OrderGetTotalSumAPIView(APIView):
             start_date = request.query_params.get('start_date', START_DATE_DEFAULT)
             end_date = request.query_params.get('end_date', END_DATE_DEFAULT)
             return Response(Order.get_total_order_cost(start_date, end_date), status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_OrderGetStatAVGCostAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ProductGetPercentSellsAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+    queryset = Telephone.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        try:
+            start_date = request.query_params.get('start_date', START_DATE_DEFAULT)
+            end_date = request.query_params.get('end_date', END_DATE_DEFAULT)
+            return Response(Telephone.get_percent_sells(start_date, end_date), status=status.HTTP_200_OK)
         except Exception as e:
             write_error_to_file('GET_OrderGetStatAVGCostAPIView', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

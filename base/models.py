@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User
@@ -8,11 +8,15 @@ from django.db import models, connection, transaction
 from django.utils import timezone
 from psycopg2 import ProgrammingError
 
-from base.utils import get_user_image_upload_path, get_telephone_image_upload_path, dictfetchall, write_error_to_file
+from base.utils import get_user_image_upload_path, get_telephone_image_upload_path, dictfetchall, write_error_to_file, \
+    get_dates_with_null_values
 
 
 class City(models.Model):
     name = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name
 
     @classmethod
     def get_all(cls):
@@ -31,6 +35,7 @@ class UserProfile(models.Model):
     image = models.ImageField(upload_to=get_user_image_upload_path, null=True, blank=True)
     number_telephone = models.CharField(max_length=100, null=True, blank=True)
     birth_date = models.DateField(null=True, blank=True)
+    second_name = models.CharField(null=True, blank=True)
 
     def __str__(self):
         return self.user.username
@@ -41,8 +46,9 @@ class UserProfile(models.Model):
         email = data['email']
         password = make_password(data['password'])
         first_name = data['first_name']
-        last_name = data['last_name']
-        image = data.get('image')  # Используем get, чтобы избежать KeyError
+        second_name = data['second_name']
+        surname = data['surname']
+        image = data.get('image')
         number_telephone = data.get('number_telephone')
         birth_date = data.get('birth_date')
 
@@ -61,7 +67,7 @@ class UserProfile(models.Model):
                    )
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
                    RETURNING id;
-               """, [username, email, password, first_name, last_name, False, True, False])
+               """, [username, email, password, first_name, surname, False, True, False])
             user_id = cursor.fetchone()[0]
 
             cursor.execute("""
@@ -69,10 +75,11 @@ class UserProfile(models.Model):
                        user_id,
                        image, 
                        number_telephone, 
-                       birth_date
+                       birth_date,
+                       second_name
                    )
-                   VALUES (%s, %s, %s, %s)
-               """, [user_id, image, number_telephone, birth_date])
+                   VALUES (%s, %s, %s, %s, %s)
+               """, [user_id, image, number_telephone, birth_date, second_name])
 
         return user_id
 
@@ -85,7 +92,8 @@ class UserProfile(models.Model):
                 auth_user.is_superuser AS is_superuser,
                 auth_user.username AS username,
                 auth_user.first_name AS first_name,
-                auth_user.last_name AS last_name,
+                auth_user.last_name AS surname,
+                base_userprofile.second_name AS second_name,
                 auth_user.email AS email,
                 auth_user.is_staff AS is_staff,
                 auth_user.is_active AS is_active,
@@ -101,9 +109,11 @@ class UserProfile(models.Model):
 
     @classmethod
     def patch(cls, user_id, data):
+        if data.get('surname'):
+            data['last_name'] = data.pop('surname')
         user_fields = ['username', 'first_name', 'last_name', 'email', 'password', 'is_active',
                        'date_joined']
-        profile_fields = ['image', 'number_telephone', 'birth_date']
+        profile_fields = ['image', 'number_telephone', 'birth_date', 'second_name']
 
         user_data = {key: value for key, value in data.items() if key in user_fields}
         profile_data = {key: value for key, value in data.items() if key in profile_fields}
@@ -144,7 +154,8 @@ class UserProfile(models.Model):
                     auth_user.is_superuser AS is_superuser,
                     auth_user.username AS username,
                     auth_user.first_name AS first_name,
-                    auth_user.last_name AS last_name,
+                    auth_user.last_name AS surname,
+                    base_userprofile.second_name AS second_name,
                     auth_user.email AS email,
                     auth_user.is_staff AS is_staff,
                     auth_user.is_active AS is_active,
@@ -163,6 +174,7 @@ class Address(models.Model):
     city = models.ForeignKey(City, on_delete=models.CASCADE)
     street_name = models.CharField(max_length=100)
     post_code = models.CharField(max_length=10)
+
 
     @classmethod
     def get_item(cls, address_id):
@@ -291,6 +303,9 @@ class Telephone(models.Model):
     release_date = models.DateField()
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
     update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
+
+    def __str__(self):
+        return self.title
 
     @classmethod
     def get_list(cls, ids):
@@ -471,11 +486,12 @@ class Telephone(models.Model):
     @classmethod
     def get_item(cls, telephone_id):
         with connection.cursor() as cursor:
-            query = """SELECT 
+            query = """SELECT
                 base_telephone.id AS id, 
                 base_telephone.title AS title, 
                 base_telephone.price AS price, 
                 base_brand.title AS brand,
+                base_brand.id AS brand_id,
                 base_telephone.description AS description, 
                 base_telephone.diagonal_screen AS diagonal_screen,
                 base_telephone.built_in_memory AS built_in_memory,
@@ -491,9 +507,8 @@ class Telephone(models.Model):
                 WHERE base_telephone.id = %s
                 GROUP BY 
                     base_telephone.id, 
-                    base_brand.title
-                ORDER BY 
-                    base_telephone.title;
+                    base_brand.title,
+                    base_brand.id;
                 """
             cursor.execute(query, [telephone_id])
             data = dictfetchall(cursor)
@@ -594,6 +609,27 @@ class Telephone(models.Model):
             "items": items,
         }
 
+    @classmethod
+    def get_percent_sells(cls, start_date, end_date):
+        with connection.cursor() as cursor:
+            query = """
+        SELECT
+            t.title AS telephone_title,
+            COALESCE(SUM(CASE WHEN o.status = 'DONE' AND DATE(o.created_time) BETWEEN %s AND %s THEN opd.amount ELSE NULL END), NULL) AS total_sold
+        FROM
+            base_telephone t
+        LEFT JOIN
+            base_order_product_details opd ON t.id = opd.telephone_id
+        LEFT JOIN
+            base_order o ON opd.order_id = o.id
+        GROUP BY
+            t.title;
+        """
+
+            cursor.execute(query, [start_date, end_date])
+            result = dictfetchall(cursor)
+            return result
+
 
 class TelephoneImage(models.Model):
     title = models.CharField(max_length=100, unique=True)
@@ -641,6 +677,9 @@ class Order(models.Model):
     first_name = models.CharField(max_length=50)
     second_name = models.CharField(null=True, blank=True)
     surname = models.CharField(max_length=50)
+
+    def __str__(self):
+        return self.status
 
     @classmethod
     def get_full_data(cls, start_date, end_date, order_status=None, user_id=None, ):
@@ -738,6 +777,8 @@ class Order(models.Model):
 
                     product_prices = {}
                     for product_data in validated_data['products']:
+                        Telephone.edit_amount(product_data['telephone_id'], -product_data['amount'])
+                        print(-product_data['amount'])
                         product_price_query = """
                             SELECT price, discount FROM base_telephone WHERE id = %s;
                         """
@@ -772,7 +813,7 @@ class Order(models.Model):
                     cursor.execute(order_query, (
                         validated_data['user_id'],
                         address_id,
-                        'PREPARATION',
+                        'PENDING',
                         timezone.now(),
                         timezone.now(),
                         validated_data['first_name'],
@@ -822,8 +863,9 @@ class Order(models.Model):
                 base_order.id AS id,
                 base_order.status AS status,
                 base_order.user_id AS user_id,
-                base_order.status AS first_name,
-                base_order.status AS last_name,
+                base_order.first_name AS first_name,
+                base_order.second_name AS second_name,
+                base_order.surname AS surname,
                 DATE(base_order.update_time) AS update_time,
                 DATE(base_order.created_time) AS created_time,
                 base_address.street_name AS street,
@@ -841,7 +883,8 @@ class Order(models.Model):
                 ON base_address.city_id = base_city.id
             WHERE 1=1
                 {query_user}
-                {query_date};
+                {query_date}
+            ORDER BY created_time DESC;
             """
             cursor.execute(query)
             result = dictfetchall(cursor)
@@ -892,6 +935,7 @@ class Order(models.Model):
         with connection.cursor() as cursor:
             query = """ 
                     SELECT
+                        base_order.id AS id,
                         base_order.status AS status,
                         base_order.user_id AS user_id,
                         base_order.surname,
@@ -928,7 +972,6 @@ class Order(models.Model):
         if item_type not in item_fields:
             raise ValueError(f"Invalid item type: {item_type}")
 
-        # Get the current item to check its status
         current_item = cls.get_item(item_id)
         current_status = current_item['status']
 
@@ -967,7 +1010,7 @@ class Order(models.Model):
                             FROM base_order_product_details
                             WHERE base_order_product_details.order_id = base_order.id
                         )
-                    ) AS avg_full_price
+                    ) AS value
                 FROM
                     base_order
                 JOIN
@@ -981,15 +1024,15 @@ class Order(models.Model):
                 """
             cursor.execute(query, [start_date, end_date])
             result = dictfetchall(cursor)
-            return result
+            return get_dates_with_null_values(result, start_date, end_date)
 
     @classmethod
     def get_order_amount_product(cls, start_date=None, end_date=None):
         with connection.cursor() as cursor:
             query = """
                 SELECT
-                    DATE(base_order.created_time) AS date,
-                    SUM(base_order_product_details.amount) AS total_sold
+                    DATE(base_order.created_time) AS DATE,
+                    SUM(base_order_product_details.amount) AS VALUE
                 FROM
                     base_order
                 JOIN
@@ -998,10 +1041,13 @@ class Order(models.Model):
                     DATE(base_order.created_time) BETWEEN %s AND %s
                 GROUP BY
                     DATE(base_order.created_time)
+                ORDER BY
+                    DATE DESC
                 """
             cursor.execute(query, [start_date, end_date])
             result = dictfetchall(cursor)
-            return result
+
+            return get_dates_with_null_values(result, start_date, end_date)
 
     @classmethod
     def get_order_amount(cls, start_date=None, end_date=None):
@@ -1009,17 +1055,19 @@ class Order(models.Model):
             query = """
                 SELECT
                     DATE(created_time) AS date,
-                    COUNT(id) AS order_count
+                    COUNT(id) AS value
                 FROM
                     base_order
                 WHERE
                     DATE(base_order.created_time) BETWEEN %s AND %s
                 GROUP BY
                     DATE(base_order.created_time)
+                ORDER BY
+                    date DESC
                 """
             cursor.execute(query, [start_date, end_date])
             result = dictfetchall(cursor)
-            return result
+            return get_dates_with_null_values(result, start_date, end_date)
 
     @classmethod
     def get_total_order_cost(cls, start_date=None, end_date=None):
@@ -1033,7 +1081,7 @@ class Order(models.Model):
                             FROM base_order_product_details
                             WHERE base_order_product_details.order_id = base_order.id
                         )
-                    ) AS total_full_price
+                    ) AS value
                 FROM
                     base_order
                 JOIN
@@ -1044,10 +1092,12 @@ class Order(models.Model):
                     DATE(base_order.created_time) BETWEEN %s AND %s
                 GROUP BY
                     DATE(base_order.created_time)
+                 ORDER BY
+                    date DESC;
                 """
             cursor.execute(query, [start_date, end_date])
             result = dictfetchall(cursor)
-            return result
+            return get_dates_with_null_values(result, start_date, end_date)
 
 
 class order_product_details(models.Model):
@@ -1223,6 +1273,7 @@ class Vendor(models.Model):
         with connection.cursor() as cursor:
             query_vendor = """
                 SELECT
+                    id,
                     first_name,
                     second_name,
                     surname,
@@ -1234,16 +1285,8 @@ class Vendor(models.Model):
             cursor.execute(query_vendor, [vendor_id])
             result_vendor = dictfetchall(cursor)
 
-            query_delivery = """
-                SELECT
-                    *
-                FROM base_delivery
-                WHERE vendor_id = %s;
-            """
-            cursor.execute(query_delivery, [vendor_id])
-            result_delivery = dictfetchall(cursor)
         if result_vendor:
-            return {**result_vendor[0], "delivery": result_delivery}
+            return result_vendor[0]
         return None
 
     @classmethod
@@ -1263,7 +1306,6 @@ class Vendor(models.Model):
 
 class Delivery(models.Model):
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
-    delivery_price = models.IntegerField()
     created_time = models.DateTimeField(auto_now_add=True, verbose_name='created_time')
     update_time = models.DateTimeField(auto_now=True, verbose_name='update_time')
 
@@ -1271,70 +1313,12 @@ class Delivery(models.Model):
         return 'id: ' + str(self.pk)
 
     @classmethod
-    def get_full_data(cls, sort_field, vendor_id):
-        with connection.cursor() as cursor:
-            vendor_condition = "AND base_delivery.vendor_id = %s" if vendor_id else ""
-
-            delivery_query = f"""
-                    SELECT 
-                        base_delivery.id AS delivery_id,
-                        base_delivery.delivery_price AS delivery_price,
-                        base_delivery.vendor_id,
-                        base_vendor.surname,
-                        base_vendor.first_name,
-                        base_vendor.second_name,
-                        base_delivery.created_time,
-                        base_delivery.update_time,
-                        (
-                            SELECT SUM(base_delivery_details.amount * base_delivery_details.price_one_phone) 
-                            FROM base_delivery_details 
-                            WHERE base_delivery_details.delivery_id = base_delivery.id
-                        ) + base_delivery.delivery_price AS full_price
-                    FROM base_delivery JOIN base_vendor 
-                        ON base_vendor.id = base_delivery.vendor_id
-                    WHERE 1=1 {vendor_condition}
-                    ORDER BY {sort_field};
-                """
-            params = [vendor_id] if vendor_id else []
-            cursor.execute(delivery_query, params)
-            deliveries = dictfetchall(cursor)
-
-            # Для каждой записи из base_delivery извлекаем детали
-            for delivery in deliveries:
-                delivery_id = delivery['delivery_id']
-                delivery_details_query = """
-                        SELECT
-                            id,
-                            price_one_phone,
-                            amount,
-                            telephone_id
-                        FROM base_delivery_details
-                        WHERE delivery_id = %s;
-                    """
-                cursor.execute(delivery_details_query, [delivery_id])
-                new_delivery_details_data = dictfetchall(cursor)
-
-                delivery["delivery_details"] = new_delivery_details_data
-            return deliveries
-
-    @classmethod
     def get_item(cls, delivery_id):
         with connection.cursor() as cursor:
             delivery_query = """ 
                 SELECT 
                     base_delivery.id AS delivery_id,
-                    base_delivery.delivery_price AS delivery_price,
-                    base_delivery.vendor_id,
-                    base_vendor.surname,
-                    base_vendor.first_name,
-                    base_vendor.second_name,
-                    base_delivery.created_time,
-                    base_delivery.update_time,
-                    (
-                        SELECT SUM(base_delivery_details.amount * base_delivery_details.price_one_phone) 
-                        FROM base_delivery_details 
-                        WHERE base_delivery_details.delivery_id = base_delivery.id
-                    ) + base_delivery.delivery_price AS full_price
+                    base_delivery.vendor_id
                 FROM base_delivery JOIN base_vendor 
                     ON base_vendor.id = base_delivery.vendor_id
                 WHERE base_delivery.id = %s;
@@ -1345,7 +1329,10 @@ class Delivery(models.Model):
             if not delivery_data:
                 return None
             delivery_details_query = """
-                SELECT *
+                SELECT
+                    price_one_phone,
+                    amount,
+                    telephone_id
                 FROM base_delivery_details
                 WHERE delivery_id = %s;
             """
@@ -1363,7 +1350,6 @@ class Delivery(models.Model):
             query = f"""
                 SELECT
                     base_delivery.id as delivery_id,
-                    base_delivery.delivery_price as delivery_price,
                     base_delivery.vendor_id,
                     CONCAT(base_vendor.surname, ' ', base_vendor.first_name, ' ', base_vendor.second_name) as full_name
                 FROM
@@ -1384,18 +1370,16 @@ class Delivery(models.Model):
                 with connection.cursor() as cursor:
                     query_delivery = """
                         INSERT INTO base_delivery (
-                            delivery_price,
                             vendor_id,
                             created_time,
                             update_time
                         )
-                        VALUES (%s, %s, %s, %s)
+                        VALUES (%s, %s, %s)
                         RETURNING id;
                     """
                     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     cursor.execute(
                         query_delivery, [
-                            data.get('delivery_price'),
                             data.get('vendor_id'),
                             current_time,
                             current_time])
@@ -1414,7 +1398,7 @@ class Delivery(models.Model):
                         """
                         cursor.execute(
                             query_details, [
-                                delivery_details_data.get('price'),
+                                delivery_details_data.get('price_one_phone'),
                                 delivery_details_data.get('amount'),
                                 delivery_id,
                                 delivery_details_data.get('telephone_id')])
@@ -1432,7 +1416,7 @@ class Delivery(models.Model):
             query_telephone = f"""
                 UPDATE base_delivery
                 SET {set_clause}
-                WHERE id = 1
+                WHERE id = %s
                 RETURNING *;
             """
             cursor.execute(
@@ -1441,9 +1425,6 @@ class Delivery(models.Model):
             fetch_result = cursor.fetchone()
             if not fetch_result:
                 raise Exception({'error': 'Failed to patch delivery'})
-        delivery = fetch_result
-
-        return delivery
 
     @classmethod
     def delete_item(cls, delivery_id):
@@ -1515,38 +1496,23 @@ class Views(models.Model):
     created_time = models.DateTimeField()
 
     @classmethod
-    def get_full_data_stat(cls, telephone_id=None, user_id=None, start_date=None, end_date=None):
-        queue_conditions = []
-
-        if telephone_id:
-            queue_conditions.append(f"base_views.telephone_id = {telephone_id}")
-        if user_id:
-            queue_conditions.append(f"base_views.user_id = {user_id}")
-
-        queue = ""
-        if queue_conditions:
-            queue = "AND " + " AND ".join(queue_conditions)
-
+    def get_full_data_stat(cls, start_date=None, end_date=None):
         query = f"""
-                    SELECT
-                        base_views.telephone_id,
-                        base_views.user_id,
-                        DATE(base_views.created_time) AS date,
-                        auth_user.username,
-                        base_telephone.title
-                    FROM base_views
-                    JOIN auth_user ON auth_user.id = base_views.user_id
-                    JOIN base_telephone ON base_views.telephone_id = base_telephone.id
-                    WHERE
-                        DATE(base_views.created_time) BETWEEN %s AND %s
-                    {queue}
-                """
+                SELECT
+                    DATE(base_views.created_time) AS date,
+                    COUNT(base_views.telephone_id) AS value
+                FROM base_views
+                GROUP BY
+                    DATE(base_views.created_time)
+                ORDER BY
+                    DATE(base_views.created_time)
+            """
 
         with connection.cursor() as cursor:
             cursor.execute(query, [start_date, end_date])
             result = dictfetchall(cursor)
 
-        return result
+        return get_dates_with_null_values(result, start_date, end_date)
 
     @classmethod
     def post_item(cls, data):
@@ -1567,3 +1533,5 @@ class Views(models.Model):
                     data.get('user_id'),
                     data['created_time']
                 ])
+
+

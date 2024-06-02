@@ -171,24 +171,32 @@ class VendorSerializer(serializers.ModelSerializer):
         fields = ['first_name', 'second_name', 'surname', 'number_telephone']
 
 
+class DeliveryPatchSerializer(serializers.ModelSerializer):
+    delivery_price = serializers.IntegerField(required=False)
+    vendor_id = serializers.IntegerField(required=False)
+
+    class Meta:
+        model = delivery_details
+        fields = ['delivery_price', 'vendor_id']
+
+
 class DeliveryDetailsSerializer(serializers.ModelSerializer):
-    price = serializers.IntegerField(required=False)
+    price_one_phone = serializers.IntegerField(required=False)
     amount = serializers.IntegerField(required=False)
     telephone_id = serializers.IntegerField(required=False)
 
     class Meta:
         model = delivery_details
-        fields = ['price', 'amount', 'telephone_id']
+        fields = ['price_one_phone', 'amount', 'telephone_id']
 
 
 class DeliverySerializer(serializers.ModelSerializer):
     vendor_id = serializers.IntegerField(required=True)
-    delivery_price = serializers.IntegerField(required=True)
     delivery_details = DeliveryDetailsSerializer(many=True)
 
     class Meta:
         model = Delivery
-        fields = ['vendor_id', 'delivery_details', 'delivery_price']
+        fields = ['vendor_id', 'delivery_details']
 
 
 class CommentSerializer(serializers.ModelSerializer):

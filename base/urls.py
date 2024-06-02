@@ -20,15 +20,16 @@ urlpatterns = [
     path('/user', UsersAdminGetAPIView.as_view(), name='users_for_admin'),
     path('/user/<int:id>', UsersAdminGetItemPatchDeleteAPIView.as_view(), name='user_for_admin'),
 
-    path('/order', OrderGetPostAPIView.as_view(), name='orders'),
+    path('/order', OrderPostAPIView.as_view(), name='order'),
+    path('/admin/order', OrderGetAPIView.as_view(), name='orders'),
     path('/order/<int:id>', OrderGetItemPatchAPIView.as_view(), name='order'),
-    path('/order_by_user_id', OrderGetListByUserAPIView.as_view(), name='order_by_user_id'),
 
     path('/vendor', VendorGetPostAPIView.as_view(), name='vendors'),
     path('/vendor/<int:id>', VendorGetPatchDeleteItemAPIView.as_view(), name='vendor'),
 
     path('/delivery', DeliveryGetPostAPIView.as_view(), name='deliveries'),
     path('/delivery/<int:id>', DeliveryGetPatchDeleteItemAPIView.as_view(), name='delivery'),
+    path('/delivery_details/<int:id>', DeliveryDetailsPatch.as_view(), name='delivery_details'),
 
     path('/comment', CommentGetPostAPIView.as_view(), name='comment'),
     path('/comment/<int:id>', CommentPatchAPIView.as_view(), name='comment'),
@@ -38,4 +39,6 @@ urlpatterns = [
     path('/analytic/order_amount_product', OrderGetStatAmountProductAPIView.as_view(), name='analytic_order_amount_product'),
     path('/analytic/order_amount', OrderGetStatAmountOrderAPIView.as_view(), name='analytic_order_amount'),
     path('/analytic/order_total_sum', OrderGetTotalSumAPIView.as_view(), name='analytic_order_total_sum'),
+    path('/analytic/product_percent_sells', ProductGetPercentSellsAPIView.as_view(), name='analytic_order_total_sum'),
 ]
+

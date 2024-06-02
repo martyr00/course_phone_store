@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def get_telephone_image_upload_path(instance, filename):
@@ -46,3 +46,20 @@ def get_last_month():
 
     new_datetime = datetime(year, month, day).strftime('%Y-%m-%d')
     return new_datetime
+
+def get_dates_with_null_values(result, start_date, end_date):
+    start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+    end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+    all_dates = [start_date_obj + timedelta(days=x) for x in range((end_date_obj - start_date_obj).days + 1)]
+
+    # Create a dictionary with all dates initialized to null
+    result_dict = {date.strftime('%Y-%m-%d'): None for date in all_dates}
+
+    # Update dictionary with values from the query result
+    for entry in result:
+        result_dict[entry['date'].strftime('%Y-%m-%d')] = entry['value']
+
+    # Convert the dictionary back to the desired list format
+    final_result = [{'date': date, 'value': value} for date, value in result_dict.items()]
+
+    return final_result
