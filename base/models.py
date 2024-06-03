@@ -613,17 +613,26 @@ class Telephone(models.Model):
     def get_percent_sells(cls, start_date, end_date):
         with connection.cursor() as cursor:
             query = """
-        SELECT
-            t.title AS telephone_title,
-            COALESCE(SUM(CASE WHEN o.status = 'DONE' AND DATE(o.created_time) BETWEEN %s AND %s THEN opd.amount ELSE NULL END), NULL) AS total_sold
-        FROM
-            base_telephone t
-        LEFT JOIN
-            base_order_product_details opd ON t.id = opd.telephone_id
-        LEFT JOIN
-            base_order o ON opd.order_id = o.id
-        GROUP BY
-            t.title;
+           SELECT
+                base_telephone.title AS telephone_title,
+                COALESCE(telephone_sells.total_sold, NULL) AS total_sold
+            FROM
+                base_telephone
+            LEFT JOIN (
+                SELECT
+                    base_order_product_details.telephone_id,
+                    COALESCE(SUM(base_order_product_details.amount), 0) AS total_sold
+                FROM
+                    base_order_product_details
+                JOIN
+                    base_order ON base_order_product_details.order_id = base_order.id
+                WHERE
+                    base_order.status = 'DONE' AND DATE(base_order.created_time) BETWEEN %s AND %s
+                GROUP BY
+                    base_order_product_details.telephone_id
+            ) telephone_sells ON base_telephone.id = telephone_sells.telephone_id
+            GROUP BY
+                base_telephone.title, telephone_sells.total_sold;
         """
 
             cursor.execute(query, [start_date, end_date])
@@ -852,12 +861,6 @@ class Order(models.Model):
     @classmethod
     def get_all(cls, start_date, end_date, user_id=None):
         with connection.cursor() as cursor:
-            query_user = ""
-            if user_id:
-                query_user = f'AND base_order.user_id = {user_id}'
-
-            query_date = f"AND base_order.update_time BETWEEN '{start_date}' AND '{end_date}'"
-
             query = f"""
             SELECT
                 base_order.id AS id,
@@ -881,10 +884,7 @@ class Order(models.Model):
                 ON base_order.address_id = base_address.id
             JOIN base_city
                 ON base_address.city_id = base_city.id
-            WHERE 1=1
-                {query_user}
-                {query_date}
-            ORDER BY created_time DESC;
+            ORDER BY base_order.update_time DESC
             """
             cursor.execute(query)
             result = dictfetchall(cursor)
