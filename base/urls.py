@@ -34,6 +34,9 @@ urlpatterns = [
     path('/comment', CommentGetPostAPIView.as_view(), name='comment'),
     path('/comment/<int:id>', CommentPatchAPIView.as_view(), name='comment'),
 
+    path('/wish_list', WishListAPIView.as_view(), name='wish_list'),
+    path('/wish_list/<int:id>', WishListAPIView.as_view(), name='wish_list'),
+
     path('/analytic/views', ViewsGetFullDataAPIView.as_view(), name='analytic_views'),
     path('/analytic/avg_order_cost', OrderGetStatAVGCostAPIView.as_view(), name='analytic_avg_order_cost'),
     path('/analytic/order_amount_product', OrderGetStatAmountProductAPIView.as_view(), name='analytic_order_amount_product'),

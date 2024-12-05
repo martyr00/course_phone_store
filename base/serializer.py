@@ -1,5 +1,5 @@
 from .models import Telephone, Brand, UserProfile, TelephoneImage, Order, order_product_details, Address, Vendor, \
-    delivery_details, Delivery, Comment
+    delivery_details, Delivery, Comment, wish_list
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import serializers
@@ -214,3 +214,12 @@ class CommentPatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = ['text']
+
+
+class WishListSerializer(serializers.ModelSerializer):
+    telephone_id = serializers.IntegerField()
+    user_id = serializers.IntegerField()
+
+    class Meta:
+        model = wish_list
+        fields = ['telephone_id', 'user_id']

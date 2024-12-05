@@ -14,10 +14,10 @@ from .permission import IsAdminOrReadOnly, AuthenticatedUser, AllowOnlyAdmin, Au
 from .serializer import TelephoneSerializer, BrandSerializer, UserSerializer, \
     GetAllTelephoneSerializer, OrderSerializerAuthUser, OrderSerializerNoAuthUser, OrderProductsSerializer, \
     UserRegistrationSerializer, VendorSerializer, DeliverySerializer, DeliveryDetailsSerializer, CommentSerializer, \
-    CommentPatchSerializer, DeliveryPatchSerializer
+    CommentPatchSerializer, DeliveryPatchSerializer, WishListSerializer
 
 from base.models import Telephone, Brand, UserProfile, Order, City, Vendor, Delivery, delivery_details, Address, \
-    Comment, Views
+    Comment, Views, wish_list
 from .utils import write_error_to_file
 
 
@@ -851,3 +851,43 @@ class ProductGetPercentSellsAPIView(APIView):
         except Exception as e:
             write_error_to_file('GET_OrderGetStatAVGCostAPIView', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class WishListAPIView(APIView):
+    permission_classes = [AuthenticatedUser]
+    queryset = wish_list.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        try:
+            user_id = request.user.id
+            result_get_items_by_user_id = wish_list.get_by_user_id(user_id)
+            return Response(result_get_items_by_user_id, status=status.HTTP_200_OK)
+        except TypeError:
+            return Response({'error': 'Object does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('GET_item_WishListAPIView', e)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def post(self, request, *args, **kwargs):
+        try:
+            data = {'telephone_id': kwargs.get("id"), 'user_id': request.user.id}
+            serializer = WishListSerializer(data=data)
+            if serializer.is_valid():
+                return Response(wish_list.post_by_user(serializer.validated_data), status=status.HTTP_201_CREATED)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('POST_WISH_LIST', e)
+            return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def delete(self, request, *args, **kwargs):
+        try:
+            data = {'telephone_id': kwargs.get("id"), 'user_id': request.user.id}
+            serializer = WishListSerializer(data=data)
+            if serializer.is_valid():
+                return Response(wish_list.delete_obj(serializer.validated_data), status=status.HTTP_204_NO_CONTENT)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('DELETE_WISH_LIST', e)
+            return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
