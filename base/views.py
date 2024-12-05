@@ -891,3 +891,80 @@ class WishListAPIView(APIView):
         except Exception as e:
             write_error_to_file('DELETE_WISH_LIST', e)
             return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PhonesAddedWishListAPIView(APIView):
+    permission_classes = [AuthenticatedUser]
+    queryset = wish_list.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        pass
+
+
+class BestSellingTelephoneAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            return Response(Telephone.get_best_selling_telephone(), status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_MoreThanWishListAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class MoreThanWishListAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            return Response(Telephone.get_more_than_in_wish_list(), status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_MoreThanWishListAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class VendorsByTelephonesBrandAPIView(APIView):
+    queryset = Vendor.objects.all()
+    permission_classes = [AllowOnlyAdmin]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            brand_title = request.GET.get('brand')
+            if not brand_title:
+                return Response({'error': 'Brand parameter is missing'}, status=status.HTTP_400_BAD_REQUEST)
+
+            data = {'title': request.GET.get('brand')}
+            serializer = BrandSerializer(data=data)
+            if serializer.is_valid():
+                return Response(Vendor.get_vendors_by_telephones_brand(serializer.validated_data['title']), status=status.HTTP_200_OK)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            write_error_to_file('GET_VendorsByTelephonesBrandAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class UsersByQuantityAndTotalCostOrderAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            return Response(UserProfile.get_users_order_by_quantity_orders_and_total_cost(), status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_UsersByQuantityAndTotalCostOrderAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class UsersPlacedOrderOnDateAPIView(APIView):
+    permission_classes = [AllowOnlyAdmin]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            date = request.GET.get('date')
+            if not date:
+                return Response({'error': 'Date parameter is missing'}, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response(UserProfile.get_users_placed_order_on_date(date), status=status.HTTP_200_OK)
+        except Exception as e:
+            write_error_to_file('GET_UsersByQuantityAndTotalCostOrderAPIView', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

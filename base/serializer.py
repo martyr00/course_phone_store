@@ -21,7 +21,7 @@ class TelephoneImages(serializers.ModelSerializer):
 
 
 class GetAllTelephoneSerializer(serializers.ModelSerializer):
-    brand = serializers.StringRelatedField()  # or you can use BrandSerializer here if available
+    brand = serializers.StringRelatedField()
     images = serializers.JSONField()
 
     class Meta:

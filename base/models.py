@@ -169,6 +169,45 @@ class UserProfile(models.Model):
             user_data = dictfetchall(cursor)
             return user_data[0]
 
+    @classmethod
+    def get_users_placed_order_on_date(cls, date):
+        with connection.cursor() as cursor:
+            query = """
+                SELECT DISTINCT
+                    u.username,
+                    u.first_name,
+                    u.last_name
+                FROM auth_user u
+                JOIN base_order o ON u.Id = o.user_id
+                WHERE
+                    Date(o.created_time) = %s
+            """
+            cursor.execute(query, [date])
+            result = dictfetchall(cursor)
+            return result
+
+    @classmethod
+    def get_users_order_by_quantity_orders_and_total_cost(cls):
+        with connection.cursor() as cursor:
+            query = """
+                SELECT
+                    u.id,
+                    u.first_name,
+                    up.second_name,
+                    u.last_name,
+                    count(o.id) as quantity_orders,
+                    SUM(opd.amount * t.price) as total_cost
+                FROM base_userprofile as up, auth_user as u
+                Join base_order o ON u.id = o.user_id
+                JOIN base_order_product_details opd ON o.id = opd.order_id
+                JOIN base_telephone t ON opd.telephone_id = t.id
+                GROUP BY u.id, u.username, u.first_name, up.second_name, u.last_name, u.email
+                ORDER BY quantity_orders DESC, total_cost DESC
+            """
+            cursor.execute(query)
+            result = dictfetchall(cursor)
+            return result
+
 
 class Address(models.Model):
     city = models.ForeignKey(City, on_delete=models.CASCADE)
@@ -629,6 +668,47 @@ class Telephone(models.Model):
         """
 
             cursor.execute(query, [start_date, end_date])
+            result = dictfetchall(cursor)
+            return result
+
+    @classmethod
+    def get_more_than_in_wish_list(cls):
+        with connection.cursor() as cursor:
+            query = """
+                SELECT
+                    t.title,
+                    COUNT(w.telephone_id) as quantity_added
+                FROM
+                    base_wish_list as w
+                JOIN base_telephone t ON w.telephone_id = t.id
+                GROUP BY
+                    t.title
+                HAVING
+                    count(w.telephone_id) >= 1;
+            """
+            cursor.execute(query)
+            result = dictfetchall(cursor)
+            return result
+
+    @classmethod
+    def get_best_selling_telephone(cls):
+        with connection.cursor() as cursor:
+            query = """
+                SELECT
+                    base_telephone.title AS title,
+                    SUM(opd.amount) AS total_sells
+                FROM base_telephone JOIN base_brand
+                    ON base_telephone.brand_id = base_brand.id
+                JOIN base_order_product_details opd ON opd.telephone_id = base_telephone.id
+                GROUP BY
+                    base_telephone.id,
+                    base_brand.title,
+                    base_brand.id
+                ORDER BY
+                    total_sells DESC
+                LIMIT 1;
+            """
+            cursor.execute(query)
             result = dictfetchall(cursor)
             return result
 
@@ -1296,6 +1376,28 @@ class Vendor(models.Model):
             )
             return Vendor.get_item(vendor_id)
 
+    @classmethod
+    def get_vendors_by_telephones_brand(cls, brand_title='Apple'):
+        with connection.cursor() as cursor:
+            query = """
+                SELECT DISTINCT
+                    v.id,
+                    v.first_name,
+                    v.second_name,
+                    v.surname,
+                    v.number_telephone
+                FROM
+                    base_vendor as v
+                JOIN base_delivery as d ON v.id = d.vendor_id
+                JOIN base_delivery_details as bd ON d.id = bd.delivery_id
+                JOIN base_telephone as t ON bd.telephone_id = t.id
+                JOIN base_brand as b ON t.brand_id = b.id
+                WHERE b.title = %s
+            """
+            cursor.execute(query, [brand_title])
+            result = dictfetchall(cursor)
+            return result
+
 
 class Delivery(models.Model):
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
@@ -1578,78 +1680,3 @@ class wish_list(models.Model):
            """
             cursor.execute(
                 query_telephone, [data['user_id'], data['telephone_id']])
-
-# 1 zapros
-# SELECT
-#     t.title,
-#     COUNT(w.telephone_id) as quantity_added
-# FROM
-#     base_wish_list as w
-# JOIN base_telephone t ON w.telephone_id = t.id
-# GROUP BY
-#     t.title
-# HAVING
-#     count(w.telephone_id) > 20;
-
-# 2 zapros
-# SELECT DISTINCT
-#     u.username,
-#     u.first_name,
-#     u.last_name
-# FROM auth_user u
-# JOIN base_order o ON u.Id = o.user_id
-# WHERE
-#     Date(o.created_time) = '2024-05-28'
-
-# 3 zapros
-# SELECT DISTINCT
-#     v.id,
-#     v.first_name,
-#     v.second_name,
-#     v.surname,
-#     v.number_telephone
-# FROM
-#     base_vendor as v
-# JOIN base_delivery as d ON v.id = d.vendor_id
-# JOIN base_delivery_details as bd ON d.id = bd.delivery_id
-# JOIN base_telephone as t ON bd.telephone_id = t.id
-# JOIN base_brand as b ON t.brand_id = b.id
-# WHERE b.title = 'Apple'
-
-# 4 zapros
-# SELECT
-#     u.id,
-#     u.first_name,
-#     up.second_name,
-#     u.last_name,
-#     u.email,
-#     count(o.id) as quantity_orders,
-#     SUM(opd.amount * t.price) as total_cost
-# FROM base_userprofile as up, auth_user as u
-# Join base_order o ON u.id = o.user_id
-# JOIN base_order_product_details opd ON o.id = opd.order_id
-# JOIN base_telephone t ON opd.telephone_id = t.id
-# GROUP BY u.id, u.username, u.first_name, up.second_name, u.last_name, u.email
-# ORDER BY quantity_orders DESC, total_cost DESC
-
-# 5 zapros
-# SELECT
-#     base_telephone.title AS title,
-#     SUM(opd.amount) AS total_sells
-# FROM base_telephone JOIN base_brand
-#     ON base_telephone.brand_id = base_brand.id
-# JOIN base_order_product_details opd ON opd.telephone_id = base_telephone.id
-# GROUP BY
-#     base_telephone.id,
-#     base_brand.title,
-#     base_brand.id
-# ORDER BY
-#     total_sells DESC
-# LIMIT 1;
-
-
-
-
-
-
-

@@ -43,5 +43,11 @@ urlpatterns = [
     path('/analytic/order_amount', OrderGetStatAmountOrderAPIView.as_view(), name='analytic_order_amount'),
     path('/analytic/order_total_sum', OrderGetTotalSumAPIView.as_view(), name='analytic_order_total_sum'),
     path('/analytic/product_percent_sells', ProductGetPercentSellsAPIView.as_view(), name='analytic_order_total_sum'),
+
+    path('/analytic/best_selling_telephone', BestSellingTelephoneAPIView.as_view(), name='analytic_best_selling_telephone'),
+    path('/analytic/more_than_in_wish_list', MoreThanWishListAPIView.as_view(), name='analytic_more_than_in_wish_list'),
+    path('/analytic/vendors_by_telephones_brand', VendorsByTelephonesBrandAPIView.as_view(), name='analytic_vendors_by_telephones_brand'),
+    path('/analytic/users_by_quantity_and_total_cost_order', UsersByQuantityAndTotalCostOrderAPIView.as_view(), name='analytic_users_by_quantity_and_total_cost_order'),
+    path('/analytic/users_placed_order_on_date', UsersPlacedOrderOnDateAPIView.as_view(), name='analytic_users_placed_order_on_date'),
 ]
 
