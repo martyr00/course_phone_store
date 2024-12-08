@@ -14,6 +14,7 @@ import {
 	getAnalyticOrderAmountProduct,
 	getAnalyticOrderProductPercentSales,
 } from '../../service/analytic';
+import AnalyticsNew from './AnalyticsNew';
 
 interface IAnalyticItem {
 	date: string;
@@ -36,6 +37,7 @@ const AnalyticsPage: React.FC = () => {
 	const [orderTotalSum, setOrderTotalSum] = useState<IAnalyticItem[]>([]);
 	const [orderAmountProduct, setOrderAmountProduct] = useState<IAnalyticItem[]>([]);
 	const [orderProductPercentSales, setOrderProductPercentSales] = useState<IChartData[]>([]);
+
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
@@ -154,6 +156,7 @@ const AnalyticsPage: React.FC = () => {
 				</Typography>
 				<Line options={options} data={generateChartData(orderAmountProduct)} />
 			</Box>
+			<AnalyticsNew />
 		</Box>
 	);
 };

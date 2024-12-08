@@ -1,17 +1,22 @@
 import { useEffect } from 'react';
-import { useSelector } from 'react-redux';
-import { selectFavoriteIds } from '../ducks/favorite';
-import { EnumLocalStorageKey } from '../utils/types';
+import { useDispatch } from 'react-redux';
+import { actionsFavorite } from '../ducks/favorite';
+import { getWishList } from '../service/wishlist';
 
 const FavoriteProvider = () => {
-	const favoriteIds = useSelector(selectFavoriteIds);
+	const dispatch = useDispatch();
+
+	const fetchServerData = async () => {
+		const res = await getWishList();
+
+		const ids = res.map(({ telephone_id }) => telephone_id);
+
+		dispatch(actionsFavorite.setItems(ids));
+	};
 
 	useEffect(() => {
-		localStorage.setItem(
-			EnumLocalStorageKey.favoriteItems,
-			JSON.stringify(favoriteIds),
-		);
-	}, [JSON.stringify(favoriteIds)]);
+		fetchServerData();
+	}, []);
 
 	return null;
 };

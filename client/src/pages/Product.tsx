@@ -15,6 +15,7 @@ import { getProductItem } from '../service/product';
 import { actionsCompare, selectCompareIds } from '../ducks/compare';
 import 'slick-carousel/slick/slick.css';
 import 'slick-carousel/slick/slick-theme.css';
+import { removeFromWishList, setToWishList } from '../service/wishlist';
 
 const Product = () => {
 	const { id } = useParams<{ id: string }>();
@@ -40,7 +41,12 @@ const Product = () => {
 	const favoriteIds = useSelector(selectFavoriteIds);
 	const compareIds = useSelector(selectCompareIds);
 
-	const handleClickFavorite = () => {
+	const handleClickFavorite = async () => {
+		if (favoriteIds.includes(productId)) {
+			await removeFromWishList(productId);
+		} else {
+			await setToWishList(productId);
+		}
 		dispatch(actionsFavorite.toggleProduct(productId));
 	};
 

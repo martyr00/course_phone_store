@@ -19,6 +19,7 @@ import { actionsFavorite, selectFavoriteIds } from '../ducks/favorite';
 import { actionsCompare, selectCompareIds } from '../ducks/compare';
 import { actionsCart, selectCartItems } from '../ducks/cart';
 import noImage from '../assets/noImage.jpg';
+import { removeFromWishList, setToWishList } from '../service/wishlist';
 
 const ProductListItem = ({
 	id,
@@ -32,7 +33,12 @@ const ProductListItem = ({
 	const favoriteIds = useSelector(selectFavoriteIds);
 	const compareIds = useSelector(selectCompareIds);
 
-	const handleClickFavorite = () => {
+	const handleClickFavorite = async () => {
+		if (favoriteIds.includes(id)) {
+			await removeFromWishList(id);
+		} else {
+			await setToWishList(id);
+		}
 		dispatch(actionsFavorite.toggleProduct(id));
 	};
 
