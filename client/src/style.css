@@ -1,0 +1,29 @@
+.date-input-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin: 0 auto 16px;
+}
+
+.date-input-field {
+  font-size: 16px;
+  padding: 16px 12px;
+  border: 1px solid #c4c4c4;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.date-input-field:hover {
+  border-color: #3f51b5;
+}
+
+.date-input-field:focus {
+  border-color: #3f51b5;
+  box-shadow: 0 0 4px rgba(63, 81, 181, 0.5);
+}
+
+.date-input-field:focus-visible {
+  border-color: #3f51b5;
+}

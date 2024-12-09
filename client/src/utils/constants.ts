@@ -1,7 +1,5 @@
 import { IShortProduct } from './types';
 
-export const temp = 'temp';
-
 export const formatterCurrency = new Intl.NumberFormat('uk-UA', {
 	style: 'currency',
 	currency: 'UAH',

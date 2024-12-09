@@ -195,14 +195,15 @@ class UserProfile(models.Model):
                     u.first_name,
                     up.second_name,
                     u.last_name,
-                    count(o.id) as quantity_orders,
-                    SUM(opd.amount * t.price) as total_cost
-                FROM base_userprofile as up, auth_user as u
-                Join base_order o ON u.id = o.user_id
-                JOIN base_order_product_details opd ON o.id = opd.order_id
-                JOIN base_telephone t ON opd.telephone_id = t.id
-                GROUP BY u.id, u.username, u.first_name, up.second_name, u.last_name, u.email
-                ORDER BY quantity_orders DESC, total_cost DESC
+                    COUNT(o.id) AS quantity_orders,
+                    COALESCE(SUM(opd.amount * t.price), 0) AS total_cost
+                FROM auth_user u
+                LEFT JOIN base_userprofile up ON u.id = up.user_id
+                LEFT JOIN base_order o ON u.id = o.user_id
+                LEFT JOIN base_order_product_details opd ON o.id = opd.order_id
+                LEFT JOIN base_telephone t ON opd.telephone_id = t.id
+                GROUP BY u.id, u.first_name, up.second_name, u.last_name
+                ORDER BY quantity_orders DESC, total_cost DESC;
             """
             cursor.execute(query)
             result = dictfetchall(cursor)
