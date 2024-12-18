@@ -192,6 +192,7 @@ class UserProfile(models.Model):
             query = """
                 SELECT
                     u.id,
+                    u.username,
                     u.first_name,
                     up.second_name,
                     u.last_name,
@@ -202,7 +203,7 @@ class UserProfile(models.Model):
                 LEFT JOIN base_order o ON u.id = o.user_id
                 LEFT JOIN base_order_product_details opd ON o.id = opd.order_id
                 LEFT JOIN base_telephone t ON opd.telephone_id = t.id
-                GROUP BY u.id, u.first_name, up.second_name, u.last_name
+                GROUP BY u.id, u.first_name, up.second_name, u.last_name, u.username
                 ORDER BY quantity_orders DESC, total_cost DESC;
             """
             cursor.execute(query)

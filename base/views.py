@@ -23,7 +23,7 @@ from .utils import write_error_to_file
 
 class TelephoneGetPostAPIView(APIView):
     queryset = Telephone.objects.all()
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [AllowAny]
     serializers = TelephoneSerializer
 
     def get(self, request, *args, **kwargs):
@@ -98,7 +98,7 @@ class TelephoneGetPostAPIView(APIView):
 class TelephoneGetItemPatchDeleteAPIView(APIView):
     queryset = Telephone.objects.all()
     serializer = TelephoneSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
         try:

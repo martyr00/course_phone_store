@@ -36,6 +36,7 @@ const AnalyticsNew = () => {
 	}[]>([]);
 	const [usersByQuantityAndTotalCostOrder, setUsersByQuantityAndTotalCostOrder] = useState<{
 		id: number;
+		username: string;
 		first_name: string;
 		second_name: string;
 		last_name: string;
@@ -276,6 +277,7 @@ const AnalyticsNew = () => {
 						<TableHead>
 							<TableRow>
 								<TableCell>Id</TableCell>
+								<TableCell>Username</TableCell>
 								<TableCell>First Name</TableCell>
 								<TableCell>Second Name</TableCell>
 								<TableCell>Last Name</TableCell>
@@ -290,6 +292,7 @@ const AnalyticsNew = () => {
 									sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
 								>
 									<TableCell>{item.id}</TableCell>
+									<TableCell>{item.username}</TableCell>
 									<TableCell>{item.first_name}</TableCell>
 									<TableCell>{item.second_name}</TableCell>
 									<TableCell>{item.last_name}</TableCell>

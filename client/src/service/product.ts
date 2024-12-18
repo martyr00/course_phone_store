@@ -32,3 +32,9 @@ export const editProductItem = async (id: number, data: IProductEditCreateData) 
 
 	return res.data;
 };
+
+export const deleteProductItem = async (id: number) => {
+	const res = await api.delete(`/api/v1/product/${id}`);
+
+	return res.data;
+};

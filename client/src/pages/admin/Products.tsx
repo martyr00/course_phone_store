@@ -3,9 +3,10 @@ import {
 	Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Button,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { IDetailProduct } from '../../utils/types';
-import { getAdminProductList } from '../../service/product';
+import { deleteProductItem, getAdminProductList } from '../../service/product';
 
 const Products = () => {
 	const [data, setData] = useState<IDetailProduct[]>([]);
@@ -18,6 +19,14 @@ const Products = () => {
 			.then(setData)
 			.catch(() => null);
 	}, [location.pathname]);
+
+	const handleDelete = async (id: number) => {
+		await deleteProductItem(id);
+
+		getAdminProductList()
+			.then(setData)
+			.catch(() => null);
+	};
 
 	return (
 		<TableContainer component={Paper}>
@@ -59,12 +68,20 @@ const Products = () => {
 							<TableCell>{item.discount}</TableCell>
 							<TableCell>{item.release_date}</TableCell>
 							<TableCell>
-								<IconButton
-									aria-label="edit"
-									onClick={() => navigate(`/admin/product/${item.id}`)}
-								>
-									<EditIcon />
-								</IconButton>
+								<div style={{ display: 'flex', gap: '10px' }}>
+									<IconButton
+										aria-label="edit"
+										onClick={() => navigate(`/admin/product/${item.id}`)}
+									>
+										<EditIcon />
+									</IconButton>
+									<IconButton
+										aria-label="delete"
+										onClick={() => handleDelete(item.id)}
+									>
+										<DeleteIcon />
+									</IconButton>
+								</div>
 							</TableCell>
 						</TableRow>
 					))}

@@ -92,6 +92,7 @@ export const getAnalyticUsersPlacedOrderOnDate = async (date: string) => {
 export const getAnalyticUsersByQuantityAndTotalCostOrder = async () => {
 	const res = await api.get<{
 		id: number;
+		username: string;
 		first_name: string;
 		second_name: string;
 		last_name: string;
